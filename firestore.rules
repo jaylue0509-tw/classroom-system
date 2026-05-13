@@ -1,0 +1,57 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && request.auth.token.email == 'jaylue0509@gmail.com';
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isOwner() {
+      return isVerifiedUser() && existing().email == request.auth.token.email;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidAttendance(data) {
+      return data.keys().hasAll(['email', 'name', 'courseName', 'hours']) &&
+             data.email is string && data.email.size() >= 3 && data.email.size() <= 128 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 128 &&
+             data.courseName is string && data.courseName.size() > 0 && data.courseName.size() <= 200 &&
+             data.hours is number;
+    }
+
+    match /attendances/{attendanceId} {
+      allow read: if isValidId(attendanceId) && (isAdmin() || isOwner());
+      allow list: if isAdmin() || (isVerifiedUser() && existing().email == request.auth.token.email);
+      
+      allow create: if isValidId(attendanceId) && isAdmin() && isValidAttendance(incoming());
+      
+      allow update: if isValidId(attendanceId) && isAdmin() && isValidAttendance(incoming());
+      
+      allow delete: if isValidId(attendanceId) && isAdmin();
+    }
+  }
+}
+

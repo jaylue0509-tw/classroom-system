@@ -1,0 +1,30 @@
+{
+  "entities": {
+    "Attendance": {
+      "title": "Attendance",
+      "description": "Employee course attendance record.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "aiCredit": { "type": "string" },
+        "electiveOrRequired": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "courseName": { "type": "string" },
+        "hours": { "type": "number" },
+        "company": { "type": "string" },
+        "department": { "type": "string" },
+        "title": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["email", "name", "courseName"]
+    }
+  },
+  "firestore": {
+    "/attendances/{attendanceId}": {
+      "schema": "Attendance",
+      "description": "Store all valid (attended) course records."
+    }
+  }
+}
