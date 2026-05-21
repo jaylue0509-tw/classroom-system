@@ -1,14 +1,14 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, LogOut, Upload, BookOpen, Clock, Award, AlertCircle, Loader2 } from 'lucide-react';
-import { signInWithPopup, onAuthStateChanged, User, signOut, setPersistence, browserLocalPersistence } from 'firebase/auth';
+import { Search, LogOut, Upload, BookOpen, Clock, Award, AlertCircle, Loader2, Shield, ChevronLeft, FileText } from 'lucide-react';
+import { signInWithPopup, signInWithEmailAndPassword, onAuthStateChanged, User, signOut, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { collection, query, where, getDocs, writeBatch, doc } from 'firebase/firestore';
 import Papa from 'papaparse';
 
 import { auth, googleProvider, db } from './firebase';
 
 // Constants
-const ADMIN_EMAIL = 'jaylue0509@gmail.com';
+const ADMIN_EMAIL = 'admin@hr.com';
 
 enum OperationType {
   CREATE = 'create',
@@ -23,17 +23,7 @@ interface FirestoreErrorInfo {
   error: string;
   operationType: OperationType;
   path: string | null;
-  authInfo: {
-    userId?: string | null;
-    email?: string | null;
-    emailVerified?: boolean | null;
-    isAnonymous?: boolean | null;
-    tenantId?: string | null;
-    providerInfo?: {
-      providerId?: string | null;
-      email?: string | null;
-    }[];
-  }
+  authInfo: any;
 }
 
 function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
@@ -42,13 +32,6 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData?.map(provider => ({
-        providerId: provider.providerId,
-        email: provider.email,
-      })) || []
     },
     operationType,
     path
@@ -87,23 +70,14 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  const handleLogin = async () => {
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (error) {
-      console.error('Login error', error);
-      alert('登入失敗，請稍後再試。');
-    }
-  };
-
   const handleLogout = () => {
     signOut(auth);
   };
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-50">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      <div className="flex h-screen items-center justify-center bg-[#F5F5F7]">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
       </div>
     );
   }
@@ -120,7 +94,7 @@ export default function App() {
       <main className="relative z-10 mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
         <AnimatePresence mode="wait">
           {!user ? (
-            <LoginScreen key="login" onLogin={handleLogin} />
+            <LoginScreen key="login" />
           ) : (
             <DashboardScreen key="dashboard" user={user} onLogout={handleLogout} />
           )}
@@ -131,7 +105,44 @@ export default function App() {
 }
 
 // --- Login Screen ---
-function LoginScreen({ onLogin }: { onLogin: () => void }) {
+function LoginScreen() {
+  const [mode, setMode] = useState<'user' | 'admin'>('user');
+  
+  // Admin form state (NO DEFAULT VALUES AS REQUESTED)
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  const handleGoogleLogin = async () => {
+    try {
+      setIsLoggingIn(true);
+      setLoginError('');
+      await signInWithPopup(auth, googleProvider);
+    } catch (error: any) {
+      console.error('Login error', error);
+      setLoginError(error.message || '登入失敗，請稍後再試。');
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleAdminLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminEmail || !adminPassword) {
+      setLoginError('請填寫完整帳號密碼');
+      return;
+    }
+    try {
+      setIsLoggingIn(true);
+      setLoginError('');
+      await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
+    } catch (error: any) {
+      console.error('Admin Login error', error);
+      setLoginError('帳號或密碼錯誤');
+      setIsLoggingIn(false);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -140,29 +151,111 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
       transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
       className="flex min-h-[80vh] flex-col items-center justify-center text-center"
     >
-      <div className="mb-8 rounded-3xl bg-white/60 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white/40">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-500 text-white shadow-lg">
-          <BookOpen className="h-8 w-8" />
-        </div>
-      </div>
-      <h1 className="mb-4 text-4xl font-semibold tracking-tight sm:text-5xl">
-        學分查詢系統
-      </h1>
-      <p className="mb-10 max-w-md text-lg text-[#86868B]">
-        為保障您的資料安全與隱私，系統已升級。請使用您的公司 Google 帳號登入，一鍵查看您的專屬學習紀錄。
-      </p>
-      <button
-        onClick={onLogin}
-        className="group relative flex items-center justify-center gap-3 overflow-hidden rounded-full bg-[#1D1D1F] px-8 py-4 text-lg font-medium text-white transition-all hover:scale-[1.02] hover:bg-[#2D2D2F] active:scale-95"
-      >
-        <span>Google 登入查看學分</span>
-        <motion.div
-          className="rounded-full bg-white/20 p-1"
-          whileHover={{ x: 3 }}
+      {/* Toggle */}
+      <div className="flex bg-gray-200/50 rounded-full p-1.5 mb-10 backdrop-blur-md">
+        <button 
+          onClick={() => setMode('user')}
+          className={`px-8 py-2.5 rounded-full text-sm font-semibold transition-all ${mode === 'user' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
         >
-          <Search className="h-5 w-5" />
-        </motion.div>
-      </button>
+          同仁查詢
+        </button>
+        <button 
+          onClick={() => setMode('admin')}
+          className={`px-8 py-2.5 rounded-full text-sm font-semibold transition-all ${mode === 'admin' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+        >
+          人資管理
+        </button>
+      </div>
+
+      <AnimatePresence mode="wait">
+        {mode === 'user' ? (
+          <motion.div
+            key="user"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="flex flex-col items-center"
+          >
+            <div className="mb-8 rounded-[2rem] bg-white/60 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white/40">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-500 text-white shadow-lg">
+                <BookOpen className="h-8 w-8" />
+              </div>
+            </div>
+            <h1 className="mb-4 text-4xl font-bold tracking-tight sm:text-5xl text-gray-900">
+              學分查詢系統
+            </h1>
+            <p className="mb-10 max-w-md text-lg text-gray-500 font-medium">
+              為保障您的資料安全與隱私，系統已升級。請使用您的公司 Google 帳號登入，一鍵查看您的專屬學習紀錄。
+            </p>
+            {loginError && <p className="mb-4 text-red-500 font-medium">{loginError}</p>}
+            <button
+              onClick={handleGoogleLogin}
+              disabled={isLoggingIn}
+              className="group relative flex items-center justify-center gap-3 overflow-hidden rounded-2xl bg-[#1D1D1F] px-8 py-4 text-lg font-medium text-white transition-all hover:bg-[#2D2D2F] active:scale-[0.98] disabled:opacity-70 disabled:active:scale-100"
+            >
+              {isLoggingIn ? <Loader2 className="h-6 w-6 animate-spin" /> : (
+                <>
+                  <span>Google 登入查看學分</span>
+                  <motion.div className="rounded-full bg-white/20 p-1" whileHover={{ x: 3 }}>
+                    <Search className="h-5 w-5" />
+                  </motion.div>
+                </>
+              )}
+            </button>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="admin"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-white/80 rounded-[2.5rem] p-10 shadow-[0_8px_30px_rgb(0,0,0,0.08)] backdrop-blur-xl border border-white w-full max-w-md"
+          >
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 mb-6">
+              <Shield className="h-8 w-8" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">人資管理者後台</h2>
+            <p className="text-gray-500 font-medium mb-8">請輸入您的管理員帳號密碼</p>
+            
+            <form onSubmit={handleAdminLogin} className="flex flex-col gap-4">
+              <input 
+                type="email" 
+                placeholder="請輸入管理員信箱" 
+                className="w-full bg-blue-50/40 rounded-2xl px-6 py-4 outline-none focus:bg-blue-50 focus:ring-2 focus:ring-blue-500/20 transition-all text-gray-900 font-medium placeholder:text-gray-400 placeholder:font-normal" 
+                value={adminEmail} 
+                onChange={e => setAdminEmail(e.target.value)}
+                disabled={isLoggingIn} 
+                autoComplete="off"
+              />
+              <input 
+                type="password" 
+                placeholder="請輸入密碼" 
+                className="w-full bg-blue-50/40 rounded-2xl px-6 py-4 outline-none focus:bg-blue-50 focus:ring-2 focus:ring-blue-500/20 transition-all text-gray-900 font-medium placeholder:text-gray-400 placeholder:font-normal" 
+                value={adminPassword} 
+                onChange={e => setAdminPassword(e.target.value)}
+                disabled={isLoggingIn}
+                autoComplete="new-password"
+              />
+              
+              {loginError && <p className="text-red-500 text-sm font-medium text-left px-2">{loginError}</p>}
+              
+              <button 
+                type="submit" 
+                disabled={isLoggingIn}
+                className="w-full bg-[#1D1D1F] text-white rounded-2xl px-6 py-4 font-bold flex justify-center items-center gap-2 mt-2 hover:bg-[#2D2D2F] transition-all active:scale-[0.98] disabled:opacity-70 disabled:active:scale-100"
+              >
+                {isLoggingIn ? <Loader2 className="h-5 w-5 animate-spin" /> : <Shield className="h-5 w-5" />} 
+                安全登入
+              </button>
+            </form>
+
+            <div className="mt-8 bg-indigo-50/40 rounded-2xl p-6 border border-indigo-100/50 text-left">
+              <h3 className="text-indigo-600 font-bold text-sm mb-2">權限說明</h3>
+              <p className="text-sm text-gray-600 font-medium leading-relaxed">管理員執行全系統資料匯入、刪除舊紀錄與匯出全站備份。不僅授權信箱訪問。</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
@@ -170,66 +263,37 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
 // --- Dashboard Screen ---
 function DashboardScreen({ user, onLogout }: { user: User; onLogout: () => void }) {
   const isAdmin = user.email === ADMIN_EMAIL;
-  const [activeTab, setActiveTab] = useState<'my-courses' | 'admin'>(isAdmin ? 'admin' : 'my-courses');
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.6 }}
-      className="flex flex-col gap-8"
+      className="flex flex-col gap-6"
     >
-      {/* Header */}
-      <header className="flex w-full items-center justify-between rounded-3xl bg-white/70 px-6 py-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white/50">
-        <div className="flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-            <UserAvatar name={user.displayName || '?'} />
-          </div>
-          <div>
-            <h2 className="text-xl font-semibold tracking-tight">{user.displayName}</h2>
-            <p className="text-sm text-[#86868B]">{user.email}</p>
-          </div>
-        </div>
+      {/* Header matching screenshot */}
+      <header className="flex w-full items-center justify-between rounded-full bg-white/80 px-4 py-3 shadow-[0_4px_20px_rgb(0,0,0,0.03)] backdrop-blur-xl border border-white">
+        <button 
+          onClick={onLogout}
+          className="flex items-center gap-2 text-blue-600 hover:bg-blue-50 px-4 py-2 rounded-full transition-colors font-bold text-sm"
+        >
+          <ChevronLeft className="h-5 w-5" /> 返回查詢
+        </button>
         
-        <div className="flex items-center gap-4">
-          {isAdmin && (
-            <div className="flex rounded-full bg-gray-100/80 p-1 backdrop-blur-md">
-              <button
-                onClick={() => setActiveTab('admin')}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
-                  activeTab === 'admin'
-                    ? 'bg-white text-black shadow-sm'
-                    : 'text-gray-500 hover:text-black'
-                }`}
-              >
-                系統管理
-              </button>
-              <button
-                onClick={() => setActiveTab('my-courses')}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
-                  activeTab === 'my-courses'
-                    ? 'bg-white text-black shadow-sm'
-                    : 'text-gray-500 hover:text-black'
-                }`}
-              >
-                我的學分
-              </button>
-            </div>
-          )}
-
-          <button
-            onClick={onLogout}
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200"
-            title="登出"
-          >
-            <LogOut className="h-5 w-5" />
-          </button>
+        <div className="flex items-center gap-3 pr-2">
+          <div className="text-right">
+            <h2 className="text-base font-bold tracking-tight text-gray-900">{user.displayName || (isAdmin ? '管理員' : '使用者')}</h2>
+            <p className="text-[10px] font-bold text-gray-400 uppercase">{user.email}</p>
+          </div>
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-500 border border-gray-200">
+            <FileText className="h-5 w-5" />
+          </div>
         </div>
       </header>
 
       {/* Content */}
       <AnimatePresence mode="wait">
-        {activeTab === 'my-courses' ? (
+        {!isAdmin ? (
           <MyCoursesView key="my-courses" userEmail={user.email || ''} />
         ) : (
           <AdminView key="admin" />
@@ -254,7 +318,6 @@ function MyCoursesView({ userEmail }: { userEmail: string }) {
           data.push({ id: doc.id, ...doc.data() } as AttendanceRecord);
         });
         
-        // Filter "已報到" only and sort by date
         const validRecords = data
           .filter(r => r.status === '已報到')
           .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -277,8 +340,21 @@ function MyCoursesView({ userEmail }: { userEmail: string }) {
     );
   }
 
-  const totalCredits = records.reduce((sum, record) => sum + (Number(record.hours) || 0), 0);
-  const totalCourses = records.length;
+  // Filter for AI courses ONLY for the top calculations! (This fixes Issue #1)
+  const isAICourse = (r: AttendanceRecord) => r.aiCredit === 'AI 學分課程' || r.aiCredit === 'V' || r.courseName.includes('AI');
+  const aiRecords = records.filter(isAICourse);
+
+  const totalAICredits = aiRecords.reduce((sum, record) => sum + (Number(record.hours) || 0), 0);
+  const totalAICourses = aiRecords.length;
+  
+  const requiredCount = aiRecords.filter(r => r.electiveOrRequired === '必修').length;
+  const electiveCount = aiRecords.filter(r => r.electiveOrRequired === '選修').length;
+  
+  const requiredTarget = 2;
+  const electiveTarget = 4;
+  
+  const requiredMissing = Math.max(0, requiredTarget - requiredCount);
+  const electiveMissing = Math.max(0, electiveTarget - electiveCount);
 
   return (
     <motion.div
@@ -287,63 +363,120 @@ function MyCoursesView({ userEmail }: { userEmail: string }) {
       exit={{ opacity: 0, y: -10 }}
       className="flex flex-col gap-6"
     >
-      {/* Stats row */}
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-        <div className="flex items-center gap-6 rounded-3xl bg-white/70 p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white/50">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-100 text-blue-600">
-            <Award className="h-8 w-8" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-[#86868B]">總獲取學分</p>
-            <p className="text-4xl font-semibold tracking-tight">{totalCredits}<span className="ml-1 text-xl font-normal text-gray-500">學分</span></p>
-          </div>
-        </div>
-        <div className="flex items-center gap-6 rounded-3xl bg-white/70 p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white/50">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-600">
-            <BookOpen className="h-8 w-8" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-[#86868B]">已完成課程</p>
-            <p className="text-4xl font-semibold tracking-tight">{totalCourses}<span className="ml-1 text-xl font-normal text-gray-500">堂</span></p>
+      {/* 4 Cards Stats row */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        
+        {/* Card 1 */}
+        <div className="flex flex-col justify-center gap-2 rounded-[2rem] bg-white/80 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
+          <div className="flex justify-between items-start">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-500">
+              <Award className="h-7 w-7" />
+            </div>
+            <div className="text-right flex flex-col items-end">
+              <p className="text-xs font-bold text-gray-400 mb-1">累計修課時數</p>
+              <div className="flex items-baseline gap-1">
+                <span className="text-4xl font-black tracking-tight text-gray-900">{totalAICredits}</span>
+                <span className="text-xs font-bold text-gray-400">時數</span>
+              </div>
+            </div>
           </div>
         </div>
+
+        {/* Card 2 */}
+        <div className="flex flex-col justify-center gap-2 rounded-[2rem] bg-white/80 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
+          <div className="flex justify-between items-start">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-500">
+              <BookOpen className="h-7 w-7" />
+            </div>
+            <div className="text-right flex flex-col items-end">
+              <p className="text-xs font-bold text-gray-400 mb-1">完成課程總數</p>
+              <div className="flex items-baseline gap-1">
+                <span className="text-4xl font-black tracking-tight text-gray-900">{totalAICourses}</span>
+                <span className="text-xs font-bold text-gray-400">課程</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 3: 必修 */}
+        <div className="flex flex-col justify-center rounded-[2rem] bg-white/80 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
+          <div className="flex justify-between items-center mb-4">
+            <span className="px-3 py-1 bg-red-50 text-red-500 text-xs font-bold rounded-full">必修</span>
+            <span className="text-gray-400 text-sm font-bold">{requiredCount}/{requiredTarget}</span>
+          </div>
+          <div className="w-full bg-gray-100 rounded-full h-2 mb-3 overflow-hidden">
+            <div className="bg-red-400 h-2 rounded-full" style={{ width: `${Math.min(100, (requiredCount/requiredTarget)*100)}%` }}></div>
+          </div>
+          <p className="text-xs text-gray-400 font-bold">
+            {requiredMissing > 0 ? `差 ${requiredMissing} 堂達標` : '已達標'}
+          </p>
+        </div>
+
+        {/* Card 4: 選修 */}
+        <div className="flex flex-col justify-center rounded-[2rem] bg-white/80 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
+          <div className="flex justify-between items-center mb-4">
+            <span className="px-3 py-1 bg-purple-50 text-purple-500 text-xs font-bold rounded-full">選修</span>
+            <span className="text-gray-400 text-sm font-bold">{electiveCount}/{electiveTarget}</span>
+          </div>
+          <div className="w-full bg-gray-100 rounded-full h-2 mb-3 overflow-hidden">
+            <div className="bg-purple-400 h-2 rounded-full" style={{ width: `${Math.min(100, (electiveCount/electiveTarget)*100)}%` }}></div>
+          </div>
+          <p className="text-xs text-gray-400 font-bold">
+            {electiveMissing > 0 ? `差 ${electiveMissing} 堂達標` : '已達標'}
+          </p>
+        </div>
+
       </div>
 
       {/* Course List */}
-      <div className="rounded-3xl bg-white/70 p-2 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white/50">
-        <div className="px-6 py-5">
-          <h3 className="text-xl font-semibold tracking-tight">修課紀錄</h3>
-          <p className="text-sm text-[#86868B] mt-1">此列表僅顯示狀態為「已報到」的紀錄</p>
+      <div className="rounded-[2.5rem] bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
+        <div className="px-8 py-8 pb-4">
+          <div className="flex justify-between items-center mb-5">
+            <h3 className="text-xl font-black tracking-tight text-gray-900">AI學分課程</h3>
+            <span className="text-xs font-bold text-orange-500 bg-orange-50 px-3 py-1.5 rounded-full flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-orange-400"></span> 採計學分 • {totalAICourses} 筆
+            </span>
+          </div>
+          
+          <div className="flex gap-3 text-xs font-bold mb-2">
+            <span className="flex items-center gap-1.5 bg-gray-50 text-gray-500 px-3 py-1.5 rounded-full border border-gray-100">
+              <Clock className="w-3.5 h-3.5" /> {totalAICredits} 小時數
+            </span>
+            <span className="text-red-500 bg-red-50 px-3 py-1.5 rounded-full">必修 {requiredCount} 堂</span>
+            <span className="text-purple-500 bg-purple-50 px-3 py-1.5 rounded-full">選修 {electiveCount} 堂</span>
+          </div>
         </div>
         
-        {records.length === 0 ? (
+        {aiRecords.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-gray-400">
               <AlertCircle className="h-8 w-8" />
             </div>
-            <p className="text-lg font-medium text-gray-900">目前尚無學分紀錄</p>
-            <p className="mt-1 text-sm text-gray-500">當您完成課程報到後，紀錄將會顯示於此。</p>
+            <p className="text-lg font-bold text-gray-900">目前尚無學分紀錄</p>
+            <p className="mt-1 text-sm font-medium text-gray-500">當您完成課程報到後，紀錄將會顯示於此。</p>
           </div>
         ) : (
-          <ul className="divide-y divide-gray-100/50">
-            {records.map((record) => (
-              <li key={record.id} className="px-6 py-5 transition-colors hover:bg-white/40 sm:rounded-2xl">
-                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-                  <div className="flex flex-1 flex-col gap-1">
-                    <p className="text-sm font-medium text-blue-600">{record.electiveOrRequired} • {record.aiCredit === 'V' ? 'AI 學分' : '一般學分'}</p>
-                    <p className="text-lg font-medium tracking-tight text-gray-900">{record.courseName}</p>
-                    <div className="mt-1 flex items-center gap-4 text-sm text-gray-500">
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-4 w-4" />
-                        {record.date} {record.time}
+          <ul className="divide-y divide-gray-100/60 px-4 pb-4">
+            {aiRecords.map((record) => (
+              <li key={record.id} className="p-4 transition-colors hover:bg-white/60 rounded-2xl group flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex gap-4 items-start">
+                  <div className="hidden sm:flex mt-1 w-12 h-12 rounded-xl bg-orange-50 text-orange-500 items-center justify-center font-black text-sm text-center leading-tight tracking-wider">
+                    人工<br/>智慧
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm ${record.electiveOrRequired === '必修' ? 'text-red-500 bg-red-50' : 'text-purple-500 bg-purple-50'}`}>
+                        {record.electiveOrRequired}
                       </span>
-                      <span>{record.company} / {record.department}</span>
+                      <span className="text-xs text-gray-400 font-bold">{record.date}</span>
                     </div>
+                    <p className="text-base font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{record.courseName}</p>
+                    <p className="text-xs text-gray-400 font-bold">{record.company}·{record.department}</p>
                   </div>
-                  <div className="flex items-baseline gap-1 sm:flex-col sm:items-end sm:justify-center">
-                    <span className="text-2xl font-semibold text-gray-900">+{record.hours}</span>
-                    <span className="text-sm font-medium text-gray-500">學分</span>
-                  </div>
+                </div>
+                <div className="flex flex-col items-end justify-center pr-2">
+                  <span className="text-xl font-black text-gray-900">+{record.hours}</span>
+                  <span className="text-[10px] font-bold text-gray-400">時數</span>
                 </div>
               </li>
             ))}
@@ -356,9 +489,17 @@ function MyCoursesView({ userEmail }: { userEmail: string }) {
 
 // --- Admin View ---
 function AdminView() {
+  const [adminTab, setAdminTab] = useState<'attendance' | 'presentation'>('attendance');
+  
+  // --- Attendance Upload State ---
   const [uploading, setUploading] = useState(false);
   const [status, setStatus] = useState<{ type: 'idle' | 'success' | 'error'; message: string }>({ type: 'idle', message: '' });
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // --- Presentation Generation State ---
+  const [presentationFiles, setPresentationFiles] = useState<File[]>([]);
+  const [generating, setGenerating] = useState(false);
+  const [reportResult, setReportResult] = useState<any>(null);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -373,18 +514,11 @@ function AdminView() {
       complete: async (results) => {
         try {
           const data = results.data as any[];
-          
-          if (!data || data.length === 0) {
-            throw new Error('未找到資料或格式不符');
-          }
+          if (!data || data.length === 0) throw new Error('未找到資料或格式不符');
 
-          // Format incoming CSV base mapping
-          // Columns: AI學分,選/必修,日期,時間,課程名稱,時數,公司,姓名,部門,職稱,報到狀況,email
-          
           const formattedRecords: AttendanceRecord[] = [];
           
           for(const row of data) {
-            // Because headers might have extra spaces or different casing depending on tools, normalize access
             const email = (row['email'] || row['Email'] || '').trim().toLowerCase();
             const name = (row['姓名'] || '').trim();
             const courseName = (row['課程名稱'] || '').trim();
@@ -392,9 +526,7 @@ function AdminView() {
             const hours = parseFloat(rawHours);
             const attendanceStatus = (row['報到狀況'] || '').trim();
             
-            if(!email || !name || !courseName) {
-              continue; // Skip invalid lines gracefully
-            }
+            if(!email || !name || !courseName) continue;
             
             formattedRecords.push({
               email: email,
@@ -412,23 +544,12 @@ function AdminView() {
             });
           }
 
-          if(formattedRecords.length === 0) {
-           throw new Error('無有效資料行 (請檢查欄位名稱是否包含 email, 姓名, 課程名稱)');
-          }
+          if(formattedRecords.length === 0) throw new Error('無有效資料行');
 
           setStatus({ type: 'idle', message: '刪除舊有資料中...' });
 
-          // 1. Delete all existing records
-          // In an enterprise app, we might paginate deletion.
-          // For simplicity in this demo, we fetch all and batch delete 500 at a time.
           const collectionRef = collection(db, 'attendances');
-          let oldDocs;
-          try {
-            oldDocs = await getDocs(collectionRef);
-          } catch (e) {
-             handleFirestoreError(e, OperationType.LIST, 'attendances');
-             return;
-          }
+          const oldDocs = await getDocs(collectionRef);
           
           let deleteBatch = writeBatch(db);
           let deleteCount = 0;
@@ -436,61 +557,35 @@ function AdminView() {
             deleteBatch.delete(d.ref);
             deleteCount++;
             if(deleteCount === 500) {
-              try {
-                await deleteBatch.commit();
-              } catch (e) {
-                handleFirestoreError(e, OperationType.DELETE, 'attendances');
-              }
+              await deleteBatch.commit();
               deleteBatch = writeBatch(db);
               deleteCount = 0;
             }
           }
-          if(deleteCount > 0) {
-            try {
-              await deleteBatch.commit();
-            } catch(e) {
-              handleFirestoreError(e, OperationType.DELETE, 'attendances');
-            }
-          }
+          if(deleteCount > 0) await deleteBatch.commit();
 
           setStatus({ type: 'idle', message: `寫入 ${formattedRecords.length} 筆新資料中...` });
 
-          // 2. Insert new records in batches of 500
           let insertBatch = writeBatch(db);
           let insertCount = 0;
-          
           for (const record of formattedRecords) {
-            const newDocRef = doc(collectionRef); // auto-generate ID
+            const newDocRef = doc(collectionRef);
             insertBatch.set(newDocRef, record);
             insertCount++;
-            
             if(insertCount === 500) {
-              try {
                await insertBatch.commit();
-              } catch(e) {
-                handleFirestoreError(e, OperationType.WRITE, 'attendances');
-              }
                insertBatch = writeBatch(db);
                insertCount = 0;
             }
           }
-          if(insertCount > 0) {
-            try {
-              await insertBatch.commit();
-            } catch(e) {
-              handleFirestoreError(e, OperationType.WRITE, 'attendances');
-            }
-          }
+          if(insertCount > 0) await insertBatch.commit();
 
           setStatus({ type: 'success', message: `成功匯入並覆蓋 ${formattedRecords.length} 筆資料！` });
         } catch (error: any) {
-          console.error("Upload error", error);
           setStatus({ type: 'error', message: error.message || '匯入失敗' });
         } finally {
           setUploading(false);
-          if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-          }
+          if (fileInputRef.current) fileInputRef.current.value = '';
         }
       },
       error: (error) => {
@@ -500,56 +595,169 @@ function AdminView() {
     });
   };
 
+  const handlePresentationUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      setPresentationFiles(Array.from(event.target.files));
+    }
+  };
+
+  const generatePresentation = async () => {
+    if (presentationFiles.length === 0) return;
+    setGenerating(true);
+    
+    const formData = new FormData();
+    presentationFiles.forEach(file => {
+      formData.append('files', file);
+    });
+
+    try {
+      // 呼叫 FastAPI 後端 (假設後端在 localhost:8000 執行)
+      const response = await fetch('http://localhost:8000/api/generate-report', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        throw new Error('生成失敗，請確認後端服務是否啟動');
+      }
+      
+      const data = await response.json();
+      setReportResult(data);
+    } catch (error: any) {
+      alert(error.message);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.98 }}
-      className="overflow-hidden rounded-3xl bg-white/70 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white/50"
+      className="overflow-hidden rounded-[2.5rem] bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white"
     >
-      <div className="border-b border-gray-100/50 bg-white/30 px-8 py-6">
-        <h3 className="text-xl font-semibold tracking-tight text-gray-900">系統管理</h3>
-        <p className="mt-1 text-sm text-gray-500">直接上傳最新的 CSV 檔案，系統將會完全覆蓋舊紀錄，以最新檔案為主。</p>
+      <div className="border-b border-gray-100/60 bg-white/40 px-8 py-6">
+        <h3 className="text-xl font-bold tracking-tight text-gray-900 mb-4">系統管理</h3>
+        
+        {/* Tab 切換 */}
+        <div className="flex gap-2">
+          <button 
+            onClick={() => setAdminTab('attendance')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${adminTab === 'attendance' ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-50'}`}
+          >
+            學分資料匯入
+          </button>
+          <button 
+            onClick={() => setAdminTab('presentation')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${adminTab === 'presentation' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500 hover:bg-gray-50'}`}
+          >
+            自動化簡報生成
+          </button>
+        </div>
       </div>
-      <div className="p-8 pb-12 text-center">
-        <label
-           className={`group relative flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-gray-300 bg-white hover:bg-gray-50/50 hover:border-[#0071E3] transition-all px-6 py-12 ${uploading ? 'pointer-events-none opacity-50' : ''}`}
-        >
-           <div className="rounded-full bg-blue-50 p-4 transition-transform group-hover:scale-110">
-              <Upload className="h-8 w-8 text-blue-600" />
-           </div>
-           <p className="mt-4 text-base font-medium text-gray-900">點擊或拖曳 CSV 檔案至此</p>
-           <p className="mt-1 text-sm text-gray-500">支援副檔名：.csv</p>
-           
-           <input 
-             type="file" 
-             className="hidden" 
-             accept=".csv"
-             onChange={handleFileUpload}
-             disabled={uploading}
-             ref={fileInputRef}
-           />
-        </label>
 
-        {status.message && (
-          <div className="mt-6 flex flex-col items-center justify-center gap-2">
-            {uploading && <Loader2 className="h-6 w-6 animate-spin text-blue-500" />}
-            <p className={`text-base font-medium ${
-              status.type === 'error' ? 'text-red-500' :
-              status.type === 'success' ? 'text-green-500' :
-              'text-blue-500'
-            }`}>
-              {status.message}
-            </p>
-          </div>
-        )}
+      <div className="p-8 pb-12">
+        <AnimatePresence mode="wait">
+          {adminTab === 'attendance' && (
+            <motion.div key="attendance" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center">
+              <p className="mb-6 text-sm text-gray-500 font-medium">直接上傳最新的 CSV 檔案，系統將會完全覆蓋舊紀錄，以最新檔案為主。</p>
+              <label className={`group relative flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-gray-300 bg-white hover:bg-blue-50/30 hover:border-[#0071E3] transition-all px-6 py-16 ${uploading ? 'pointer-events-none opacity-50' : ''}`}>
+                 <div className="rounded-2xl bg-blue-50 p-4 transition-transform group-hover:scale-110 mb-4">
+                    <Upload className="h-8 w-8 text-blue-600" />
+                 </div>
+                 <p className="text-lg font-bold text-gray-900 mb-1">點擊或拖曳 CSV 檔案至此</p>
+                 <p className="text-sm font-medium text-gray-500">支援副檔名：.csv</p>
+                 <input type="file" className="hidden" accept=".csv" onChange={handleFileUpload} disabled={uploading} ref={fileInputRef} />
+              </label>
+              {status.message && (
+                <div className="mt-6 flex flex-col items-center justify-center gap-3">
+                  {uploading && <Loader2 className="h-8 w-8 animate-spin text-blue-500" /> }
+                  <p className={`text-sm font-bold px-4 py-2 rounded-full ${status.type === 'error' ? 'bg-red-50 text-red-500' : status.type === 'success' ? 'bg-green-50 text-green-500' : 'bg-blue-50 text-blue-500'}`}>
+                    {status.message}
+                  </p>
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {adminTab === 'presentation' && (
+            <motion.div key="presentation" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <p className="mb-6 text-sm text-gray-500 font-medium text-center">依據 SA/SD 設計，支援上傳 Excel、PDF、TXT、PNG 素材，系統將自動判斷寫法並生成 PPTX。</p>
+              
+              <div className="flex flex-col sm:flex-row gap-6">
+                <div className="flex-1">
+                  <label className="group relative flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-gray-300 bg-white hover:bg-indigo-50/30 hover:border-indigo-500 transition-all px-6 py-12">
+                     <div className="rounded-2xl bg-indigo-50 p-4 transition-transform group-hover:scale-110 mb-4">
+                        <FileText className="h-8 w-8 text-indigo-600" />
+                     </div>
+                     <p className="text-base font-bold text-gray-900 mb-1">上傳本週報告素材</p>
+                     <p className="text-xs font-medium text-gray-500 text-center">支援多選檔案 (Excel, PDF, TXT...)</p>
+                     <input type="file" className="hidden" multiple onChange={handlePresentationUpload} />
+                  </label>
+                  
+                  {presentationFiles.length > 0 && (
+                    <div className="mt-4 flex flex-col gap-2">
+                      <p className="text-sm font-bold text-gray-700">已選取 {presentationFiles.length} 個檔案：</p>
+                      <ul className="text-xs text-gray-500">
+                        {presentationFiles.map((f, i) => (
+                          <li key={i}>• {f.name}</li>
+                        ))}
+                      </ul>
+                      <button 
+                        onClick={generatePresentation}
+                        disabled={generating}
+                        className="mt-2 w-full flex justify-center items-center gap-2 bg-indigo-600 text-white rounded-xl px-4 py-3 font-bold hover:bg-indigo-700 disabled:opacity-50"
+                      >
+                        {generating ? <Loader2 className="h-5 w-5 animate-spin" /> : <Shield className="h-5 w-5" />}
+                        開始智能生成簡報
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-1 bg-gray-50/50 rounded-3xl p-6 border border-gray-100">
+                  <h4 className="font-bold text-gray-900 mb-4">生成結果與審核區</h4>
+                  
+                  {!reportResult ? (
+                    <div className="flex h-32 items-center justify-center text-sm text-gray-400 font-medium">
+                      尚未生成簡報
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-4">
+                      <div className="bg-white p-4 rounded-xl border border-gray-200">
+                        <p className="text-xs text-gray-400 font-bold mb-1">系統判斷寫法</p>
+                        <p className="text-lg font-black text-indigo-600">Type {reportResult.strategy_used.primary_style}</p>
+                        <p className="text-sm text-gray-600 mt-1">{reportResult.strategy_used.reason}</p>
+                      </div>
+                      
+                      <div className="bg-white p-4 rounded-xl border border-gray-200">
+                        <p className="text-xs text-gray-400 font-bold mb-2">建議審核清單</p>
+                        <ul className="text-sm text-gray-600 flex flex-col gap-1">
+                          {reportResult.strategy_used.review_points.map((pt: string, i: number) => (
+                            <li key={i} className="flex items-center gap-2">
+                              <AlertCircle className="w-4 h-4 text-orange-500" /> {pt}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div className="flex gap-2 mt-2">
+                        <a href={reportResult.download_url_pptx} className="flex-1 bg-green-50 text-green-600 font-bold text-sm rounded-lg px-4 py-3 text-center hover:bg-green-100 transition-colors">
+                          下載 PPTX
+                        </a>
+                        <a href={reportResult.download_url_pdf} className="flex-1 bg-red-50 text-red-600 font-bold text-sm rounded-lg px-4 py-3 text-center hover:bg-red-100 transition-colors">
+                          下載 PDF
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </motion.div>
   );
-}
-
-// Default Avatar helper
-function UserAvatar({ name }: { name: string }) {
-  const initial = name.charAt(0).toUpperCase();
-  return <span className="text-lg font-semibold">{initial}</span>;
 }
