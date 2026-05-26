@@ -1,0 +1,2257 @@
+﻿commit cf5b655fac1fc0f6cd7051b7c7dd7b8a71b85f11
+Author: jaylue0509-tw <jaylue0509@gmail.com>
+Date:   Tue May 26 14:34:25 2026 +0800
+
+    fix: keep presentation tab and fix dashboard top cards calculation
+
+diff --git a/src/App.tsx b/src/App.tsx
+index 960e5b2..bec99c8 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -563,11 +563,18 @@ function MyCoursesView({ userEmail }: { userEmail: string; key?: string }) {
+ 
+ // --- Admin View ---
+ function AdminView() {
++  const [adminTab, setAdminTab] = useState<'attendance' | 'presentation'>('attendance');
++  
+   // --- Attendance Upload State ---
+   const [uploading, setUploading] = useState(false);
+   const [status, setStatus] = useState<{ type: 'idle' | 'success' | 'error'; message: string }>({ type: 'idle', message: '' });
+   const fileInputRef = useRef<HTMLInputElement>(null);
+ 
++  // --- Presentation Generation State ---
++  const [presentationFiles, setPresentationFiles] = useState<File[]>([]);
++  const [generating, setGenerating] = useState(false);
++  const [reportResult, setReportResult] = useState<any>(null);
++
+   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+     const file = event.target.files?.[0];
+     if (!file) return;
+@@ -662,6 +669,41 @@ function AdminView() {
+     });
+   };
+ 
++  const handlePresentationUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
++    if (event.target.files) {
++      setPresentationFiles(Array.from(event.target.files));
++    }
++  };
++
++  const generatePresentation = async () => {
++    if (presentationFiles.length === 0) return;
++    setGenerating(true);
++    
++    const formData = new FormData();
++    presentationFiles.forEach(file => {
++      formData.append('files', file);
++    });
++
++    try {
++      // ?澆 FastAPI 敺垢 (?身敺垢??localhost:8000 ?瑁?)
++      const response = await fetch('http://localhost:8000/api/generate-report', {
++        method: 'POST',
++        body: formData,
++      });
++      
++      if (!response.ok) {
++        throw new Error('??憭望?嚗?蝣箄?敺垢???臬??');
++      }
++      
++      const data = await response.json();
++      setReportResult(data);
++    } catch (error: any) {
++      alert(error.message);
++    } finally {
++      setGenerating(false);
++    }
++  };
++
+   return (
+     <motion.div
+       initial={{ opacity: 0, scale: 0.98 }}
+@@ -670,29 +712,125 @@ function AdminView() {
+       className="overflow-hidden rounded-[2.5rem] bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white"
+     >
+       <div className="border-b border-gray-100/60 bg-white/40 px-8 py-6">
+-        <h3 className="text-xl font-bold tracking-tight text-gray-900 mb-2">鈭箄?蝞∠?敺</h3>
+-        <p className="text-sm text-gray-500 font-medium">?湔銝??啁? CSV 瑼?嚗頂蝯勗????刻???蝝??隞交??唳?獢銝颯?/p>
++        <h3 className="text-xl font-bold tracking-tight text-gray-900 mb-4">蝟餌絞蝞∠?</h3>
++        
++        {/* Tab ?? */}
++        <div className="flex gap-2">
++          <button 
++            onClick={() => setAdminTab('attendance')}
++            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${adminTab === 'attendance' ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-50'}`}
++          >
++            摮詨?鞈??臬
++          </button>
++          <button 
++            onClick={() => setAdminTab('presentation')}
++            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${adminTab === 'presentation' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500 hover:bg-gray-50'}`}
++          >
++            ?芸??陛?梁???+          </button>
++        </div>
+       </div>
+ 
+       <div className="p-8 pb-12">
+-        <div className="text-center w-full max-w-2xl mx-auto">
+-          <label className={`group relative flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-gray-300 bg-white hover:bg-blue-50/30 hover:border-[#0071E3] transition-all px-6 py-16 ${uploading ? 'pointer-events-none opacity-50' : ''}`}>
+-             <div className="rounded-2xl bg-blue-50 p-4 transition-transform group-hover:scale-110 mb-4">
+-                <Upload className="h-8 w-8 text-blue-600" />
+-             </div>
+-             <p className="text-lg font-bold text-gray-900 mb-1">暺?????CSV 瑼??單迨</p>
+-             <p className="text-sm font-medium text-gray-500">?舀?舀???.csv</p>
+-             <input type="file" className="hidden" accept=".csv" onChange={handleFileUpload} disabled={uploading} ref={fileInputRef} />
+-          </label>
+-          {status.message && (
+-            <div className="mt-6 flex flex-col items-center justify-center gap-3">
+-              {uploading && <Loader2 className="h-8 w-8 animate-spin text-blue-500" /> }
+-              <p className={`text-sm font-bold px-4 py-2 rounded-full ${status.type === 'error' ? 'bg-red-50 text-red-500' : status.type === 'success' ? 'bg-green-50 text-green-500' : 'bg-blue-50 text-blue-500'}`}>
+-                {status.message}
+-              </p>
+-            </div>
++        <AnimatePresence mode="wait">
++          {adminTab === 'attendance' && (
++            <motion.div key="attendance" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center">
++              <p className="mb-6 text-sm text-gray-500 font-medium">?湔銝??啁? CSV 瑼?嚗頂蝯勗????刻???蝝??隞交??唳?獢銝颯?/p>
++              <label className={`group relative flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-gray-300 bg-white hover:bg-blue-50/30 hover:border-[#0071E3] transition-all px-6 py-16 ${uploading ? 'pointer-events-none opacity-50' : ''}`}>
++                 <div className="rounded-2xl bg-blue-50 p-4 transition-transform group-hover:scale-110 mb-4">
++                    <Upload className="h-8 w-8 text-blue-600" />
++                 </div>
++                 <p className="text-lg font-bold text-gray-900 mb-1">暺?????CSV 瑼??單迨</p>
++                 <p className="text-sm font-medium text-gray-500">?舀?舀???.csv</p>
++                 <input type="file" className="hidden" accept=".csv" onChange={handleFileUpload} disabled={uploading} ref={fileInputRef} />
++              </label>
++              {status.message && (
++                <div className="mt-6 flex flex-col items-center justify-center gap-3">
++                  {uploading && <Loader2 className="h-8 w-8 animate-spin text-blue-500" /> }
++                  <p className={`text-sm font-bold px-4 py-2 rounded-full ${status.type === 'error' ? 'bg-red-50 text-red-500' : status.type === 'success' ? 'bg-green-50 text-green-500' : 'bg-blue-50 text-blue-500'}`}>
++                    {status.message}
++                  </p>
++                </div>
++              )}
++            </motion.div>
+           )}
+-        </div>
++
++          {adminTab === 'presentation' && (
++            <motion.div key="presentation" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
++              <p className="mb-6 text-sm text-gray-500 font-medium text-center">靘? SA/SD 閮剛?嚗?港???Excel?DF?XT?NG 蝝?嚗頂蝯勗??芸??斗撖急?銝衣???PPTX??/p>
++              
++              <div className="flex flex-col sm:flex-row gap-6">
++                <div className="flex-1">
++                  <label className="group relative flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-gray-300 bg-white hover:bg-indigo-50/30 hover:border-indigo-500 transition-all px-6 py-12">
++                     <div className="rounded-2xl bg-indigo-50 p-4 transition-transform group-hover:scale-110 mb-4">
++                        <FileText className="h-8 w-8 text-indigo-600" />
++                     </div>
++                     <p className="text-base font-bold text-gray-900 mb-1">銝?祇勗????/p>
++                     <p className="text-xs font-medium text-gray-500 text-center">?舀憭瑼? (Excel, PDF, TXT...)</p>
++                     <input type="file" className="hidden" multiple onChange={handlePresentationUpload} />
++                  </label>
++                  
++                  {presentationFiles.length > 0 && (
++                    <div className="mt-4 flex flex-col gap-2">
++                      <p className="text-sm font-bold text-gray-700">撌脤??{presentationFiles.length} ??獢?</p>
++                      <ul className="text-xs text-gray-500">
++                        {presentationFiles.map((f, i) => (
++                          <li key={i}>??{f.name}</li>
++                        ))}
++                      </ul>
++                      <button 
++                        onClick={generatePresentation}
++                        disabled={generating}
++                        className="mt-2 w-full flex justify-center items-center gap-2 bg-indigo-600 text-white rounded-xl px-4 py-3 font-bold hover:bg-indigo-700 disabled:opacity-50"
++                      >
++                        {generating ? <Loader2 className="h-5 w-5 animate-spin" /> : <Shield className="h-5 w-5" />}
++                        ???箄??蝪∪
++                      </button>
++                    </div>
++                  )}
++                </div>
++
++                <div className="flex-1 bg-gray-50/50 rounded-3xl p-6 border border-gray-100">
++                  <h4 className="font-bold text-gray-900 mb-4">??蝯??祟?詨?</h4>
++                  
++                  {!reportResult ? (
++                    <div className="flex h-32 items-center justify-center text-sm text-gray-400 font-medium">
++                      撠??蝪∪
++                    </div>
++                  ) : (
++                    <div className="flex flex-col gap-4">
++                      <div className="bg-white p-4 rounded-xl border border-gray-200">
++                        <p className="text-xs text-gray-400 font-bold mb-1">蝟餌絞?斗撖急?</p>
++                        <p className="text-lg font-black text-indigo-600">Type {reportResult.strategy_used.primary_style}</p>
++                        <p className="text-sm text-gray-600 mt-1">{reportResult.strategy_used.reason}</p>
++                      </div>
++                      
++                      <div className="bg-white p-4 rounded-xl border border-gray-200">
++                        <p className="text-xs text-gray-400 font-bold mb-2">撱箄降撖拇皜</p>
++                        <ul className="text-sm text-gray-600 flex flex-col gap-1">
++                          {reportResult.strategy_used.review_points.map((pt: string, i: number) => (
++                            <li key={i} className="flex items-center gap-2">
++                              <AlertCircle className="w-4 h-4 text-orange-500" /> {pt}
++                            </li>
++                          ))}
++                        </ul>
++                      </div>
++
++                      <div className="flex gap-2 mt-2">
++                        <a href={reportResult.download_url_pptx} className="flex-1 bg-green-50 text-green-600 font-bold text-sm rounded-lg px-4 py-3 text-center hover:bg-green-100 transition-colors">
++                          銝? PPTX
++                        </a>
++                        <a href={reportResult.download_url_pdf} className="flex-1 bg-red-50 text-red-600 font-bold text-sm rounded-lg px-4 py-3 text-center hover:bg-red-100 transition-colors">
++                          銝? PDF
++                        </a>
++                      </div>
++                    </div>
++                  )}
++                </div>
++              </div>
++            </motion.div>
++          )}
++        </AnimatePresence>
+       </div>
+     </motion.div>
+   );
+
+commit 1387a76fb000b96340f4902c6834a3997c06e1dc
+Author: jaylue0509-tw <jaylue0509@gmail.com>
+Date:   Tue May 26 14:29:54 2026 +0800
+
+    fix: restore TS type definition
+
+diff --git a/src/App.tsx b/src/App.tsx
+index f4562cc..960e5b2 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -372,7 +372,7 @@ function DashboardScreen({ user, onLogout }: { user: AppUser; onLogout: () => vo
+ }
+ 
+ // --- My Courses View ---
+-function MyCoursesView({ userEmail }: { userEmail: string }) {
++function MyCoursesView({ userEmail }: { userEmail: string; key?: string }) {
+   const [records, setRecords] = useState<AttendanceRecord[]>([]);
+   const [loading, setLoading] = useState(true);
+ 
+
+commit 1ed4c0926ff8d1486eab6618da5339d2d2039677
+Author: jaylue0509-tw <jaylue0509@gmail.com>
+Date:   Tue May 26 14:29:23 2026 +0800
+
+    fix: restore total sum calculation for top cards, remove presentation tab from admin view
+
+diff --git a/src/App.tsx b/src/App.tsx
+index 3032b57..f4562cc 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -372,7 +372,7 @@ function DashboardScreen({ user, onLogout }: { user: AppUser; onLogout: () => vo
+ }
+ 
+ // --- My Courses View ---
+-function MyCoursesView({ userEmail }: { userEmail: string; key?: string }) {
++function MyCoursesView({ userEmail }: { userEmail: string }) {
+   const [records, setRecords] = useState<AttendanceRecord[]>([]);
+   const [loading, setLoading] = useState(true);
+ 
+@@ -408,21 +408,27 @@ function MyCoursesView({ userEmail }: { userEmail: string; key?: string }) {
+     );
+   }
+ 
+-  // Filter for AI courses ONLY for the top calculations! (This fixes Issue #1)
+-  const isAICourse = (r: AttendanceRecord) => r.aiCredit === 'AI 摮詨?隤脩?' || r.aiCredit === 'V' || r.courseName.includes('AI');
+-  const aiRecords = records.filter(isAICourse);
+-
+-  const totalAICredits = aiRecords.reduce((sum, record) => sum + (Number(record.hours) || 0), 0);
+-  const totalAICourses = aiRecords.length;
++  // --- Total Calculations (For the top 4 cards) ---
++  const totalCredits = records.reduce((sum, record) => sum + (Number(record.hours) || 0), 0);
++  const totalCourses = records.length;
+   
+-  const requiredCount = aiRecords.filter(r => r.electiveOrRequired === '敹耨').length;
+-  const electiveCount = aiRecords.filter(r => r.electiveOrRequired === '?訾耨').length;
++  const totalRequiredCount = records.filter(r => r.electiveOrRequired === '敹耨').length;
++  const totalElectiveCount = records.filter(r => r.electiveOrRequired === '?訾耨').length;
+   
+   const requiredTarget = 2;
+   const electiveTarget = 4;
+   
+-  const requiredMissing = Math.max(0, requiredTarget - requiredCount);
+-  const electiveMissing = Math.max(0, electiveTarget - electiveCount);
++  const requiredMissing = Math.max(0, requiredTarget - totalRequiredCount);
++  const electiveMissing = Math.max(0, electiveTarget - totalElectiveCount);
++
++  // --- AI Specific Calculations (For the AI Courses section) ---
++  const isAICourse = (r: AttendanceRecord) => r.aiCredit === 'AI 摮詨?隤脩?' || r.aiCredit === 'V' || r.courseName.includes('AI');
++  const aiRecords = records.filter(isAICourse);
++
++  const totalAICredits = aiRecords.reduce((sum, record) => sum + (Number(record.hours) || 0), 0);
++  const totalAICourses = aiRecords.length;
++  const aiRequiredCount = aiRecords.filter(r => r.electiveOrRequired === '敹耨').length;
++  const aiElectiveCount = aiRecords.filter(r => r.electiveOrRequired === '?訾耨').length;
+ 
+   return (
+     <motion.div
+@@ -443,7 +449,7 @@ function MyCoursesView({ userEmail }: { userEmail: string; key?: string }) {
+             <div className="text-right flex flex-col items-end">
+               <p className="text-xs font-bold text-gray-400 mb-1">蝝航?靽株玨?</p>
+               <div className="flex items-baseline gap-1">
+-                <span className="text-4xl font-black tracking-tight text-gray-900">{totalAICredits}</span>
++                <span className="text-4xl font-black tracking-tight text-gray-900">{totalCredits}</span>
+                 <span className="text-xs font-bold text-gray-400">?</span>
+               </div>
+             </div>
+@@ -459,7 +465,7 @@ function MyCoursesView({ userEmail }: { userEmail: string; key?: string }) {
+             <div className="text-right flex flex-col items-end">
+               <p className="text-xs font-bold text-gray-400 mb-1">摰?隤脩?蝮賣</p>
+               <div className="flex items-baseline gap-1">
+-                <span className="text-4xl font-black tracking-tight text-gray-900">{totalAICourses}</span>
++                <span className="text-4xl font-black tracking-tight text-gray-900">{totalCourses}</span>
+                 <span className="text-xs font-bold text-gray-400">隤脩?</span>
+               </div>
+             </div>
+@@ -470,13 +476,13 @@ function MyCoursesView({ userEmail }: { userEmail: string; key?: string }) {
+         <div className="flex flex-col justify-center rounded-[2rem] bg-white/80 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
+           <div className="flex justify-between items-center mb-4">
+             <span className="px-3 py-1 bg-red-50 text-red-500 text-xs font-bold rounded-full">敹耨</span>
+-            <span className="text-gray-400 text-sm font-bold">{requiredCount}/{requiredTarget}</span>
++            <span className="text-gray-400 text-sm font-bold">{totalRequiredCount}/{requiredTarget}</span>
+           </div>
+           <div className="w-full bg-gray-100 rounded-full h-2 mb-3 overflow-hidden">
+-            <div className="bg-red-400 h-2 rounded-full" style={{ width: `${Math.min(100, (requiredCount/requiredTarget)*100)}%` }}></div>
++            <div className="bg-red-400 h-2 rounded-full" style={{ width: `${Math.min(100, (totalRequiredCount/requiredTarget)*100)}%` }}></div>
+           </div>
+           <p className="text-xs text-gray-400 font-bold">
+-            {requiredMissing > 0 ? `撌?${requiredMissing} ??璅 : '撌脤?璅?}
++            {requiredMissing > 0 ? `撌?${requiredMissing} ??璅 : '??敹耨撌脤?璅?}
+           </p>
+         </div>
+ 
+@@ -484,13 +490,13 @@ function MyCoursesView({ userEmail }: { userEmail: string; key?: string }) {
+         <div className="flex flex-col justify-center rounded-[2rem] bg-white/80 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
+           <div className="flex justify-between items-center mb-4">
+             <span className="px-3 py-1 bg-purple-50 text-purple-500 text-xs font-bold rounded-full">?訾耨</span>
+-            <span className="text-gray-400 text-sm font-bold">{electiveCount}/{electiveTarget}</span>
++            <span className="text-gray-400 text-sm font-bold">{totalElectiveCount}/{electiveTarget}</span>
+           </div>
+           <div className="w-full bg-gray-100 rounded-full h-2 mb-3 overflow-hidden">
+-            <div className="bg-purple-400 h-2 rounded-full" style={{ width: `${Math.min(100, (electiveCount/electiveTarget)*100)}%` }}></div>
++            <div className="bg-purple-400 h-2 rounded-full" style={{ width: `${Math.min(100, (totalElectiveCount/electiveTarget)*100)}%` }}></div>
+           </div>
+           <p className="text-xs text-gray-400 font-bold">
+-            {electiveMissing > 0 ? `撌?${electiveMissing} ??璅 : '撌脤?璅?}
++            {electiveMissing > 0 ? `撌?${electiveMissing} ??璅 : '???訾耨撌脤?璅?}
+           </p>
+         </div>
+ 
+@@ -510,8 +516,8 @@ function MyCoursesView({ userEmail }: { userEmail: string; key?: string }) {
+             <span className="flex items-center gap-1.5 bg-gray-50 text-gray-500 px-3 py-1.5 rounded-full border border-gray-100">
+               <Clock className="w-3.5 h-3.5" /> {totalAICredits} 撠???             </span>
+-            <span className="text-red-500 bg-red-50 px-3 py-1.5 rounded-full">敹耨 {requiredCount} ??/span>
+-            <span className="text-purple-500 bg-purple-50 px-3 py-1.5 rounded-full">?訾耨 {electiveCount} ??/span>
++            <span className="text-red-500 bg-red-50 px-3 py-1.5 rounded-full">敹耨 {aiRequiredCount} ??/span>
++            <span className="text-purple-500 bg-purple-50 px-3 py-1.5 rounded-full">?訾耨 {aiElectiveCount} ??/span>
+           </div>
+         </div>
+         
+@@ -557,18 +563,11 @@ function MyCoursesView({ userEmail }: { userEmail: string; key?: string }) {
+ 
+ // --- Admin View ---
+ function AdminView() {
+-  const [adminTab, setAdminTab] = useState<'attendance' | 'presentation'>('attendance');
+-  
+   // --- Attendance Upload State ---
+   const [uploading, setUploading] = useState(false);
+   const [status, setStatus] = useState<{ type: 'idle' | 'success' | 'error'; message: string }>({ type: 'idle', message: '' });
+   const fileInputRef = useRef<HTMLInputElement>(null);
+ 
+-  // --- Presentation Generation State ---
+-  const [presentationFiles, setPresentationFiles] = useState<File[]>([]);
+-  const [generating, setGenerating] = useState(false);
+-  const [reportResult, setReportResult] = useState<any>(null);
+-
+   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+     const file = event.target.files?.[0];
+     if (!file) return;
+@@ -663,41 +662,6 @@ function AdminView() {
+     });
+   };
+ 
+-  const handlePresentationUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+-    if (event.target.files) {
+-      setPresentationFiles(Array.from(event.target.files));
+-    }
+-  };
+-
+-  const generatePresentation = async () => {
+-    if (presentationFiles.length === 0) return;
+-    setGenerating(true);
+-    
+-    const formData = new FormData();
+-    presentationFiles.forEach(file => {
+-      formData.append('files', file);
+-    });
+-
+-    try {
+-      // ?澆 FastAPI 敺垢 (?身敺垢??localhost:8000 ?瑁?)
+-      const response = await fetch('http://localhost:8000/api/generate-report', {
+-        method: 'POST',
+-        body: formData,
+-      });
+-      
+-      if (!response.ok) {
+-        throw new Error('??憭望?嚗?蝣箄?敺垢???臬??');
+-      }
+-      
+-      const data = await response.json();
+-      setReportResult(data);
+-    } catch (error: any) {
+-      alert(error.message);
+-    } finally {
+-      setGenerating(false);
+-    }
+-  };
+-
+   return (
+     <motion.div
+       initial={{ opacity: 0, scale: 0.98 }}
+@@ -706,125 +670,29 @@ function AdminView() {
+       className="overflow-hidden rounded-[2.5rem] bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white"
+     >
+       <div className="border-b border-gray-100/60 bg-white/40 px-8 py-6">
+-        <h3 className="text-xl font-bold tracking-tight text-gray-900 mb-4">蝟餌絞蝞∠?</h3>
+-        
+-        {/* Tab ?? */}
+-        <div className="flex gap-2">
+-          <button 
+-            onClick={() => setAdminTab('attendance')}
+-            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${adminTab === 'attendance' ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-50'}`}
+-          >
+-            摮詨?鞈??臬
+-          </button>
+-          <button 
+-            onClick={() => setAdminTab('presentation')}
+-            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${adminTab === 'presentation' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500 hover:bg-gray-50'}`}
+-          >
+-            ?芸??陛?梁???-          </button>
+-        </div>
++        <h3 className="text-xl font-bold tracking-tight text-gray-900 mb-2">鈭箄?蝞∠?敺</h3>
++        <p className="text-sm text-gray-500 font-medium">?湔銝??啁? CSV 瑼?嚗頂蝯勗????刻???蝝??隞交??唳?獢銝颯?/p>
+       </div>
+ 
+       <div className="p-8 pb-12">
+-        <AnimatePresence mode="wait">
+-          {adminTab === 'attendance' && (
+-            <motion.div key="attendance" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center">
+-              <p className="mb-6 text-sm text-gray-500 font-medium">?湔銝??啁? CSV 瑼?嚗頂蝯勗????刻???蝝??隞交??唳?獢銝颯?/p>
+-              <label className={`group relative flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-gray-300 bg-white hover:bg-blue-50/30 hover:border-[#0071E3] transition-all px-6 py-16 ${uploading ? 'pointer-events-none opacity-50' : ''}`}>
+-                 <div className="rounded-2xl bg-blue-50 p-4 transition-transform group-hover:scale-110 mb-4">
+-                    <Upload className="h-8 w-8 text-blue-600" />
+-                 </div>
+-                 <p className="text-lg font-bold text-gray-900 mb-1">暺?????CSV 瑼??單迨</p>
+-                 <p className="text-sm font-medium text-gray-500">?舀?舀???.csv</p>
+-                 <input type="file" className="hidden" accept=".csv" onChange={handleFileUpload} disabled={uploading} ref={fileInputRef} />
+-              </label>
+-              {status.message && (
+-                <div className="mt-6 flex flex-col items-center justify-center gap-3">
+-                  {uploading && <Loader2 className="h-8 w-8 animate-spin text-blue-500" /> }
+-                  <p className={`text-sm font-bold px-4 py-2 rounded-full ${status.type === 'error' ? 'bg-red-50 text-red-500' : status.type === 'success' ? 'bg-green-50 text-green-500' : 'bg-blue-50 text-blue-500'}`}>
+-                    {status.message}
+-                  </p>
+-                </div>
+-              )}
+-            </motion.div>
+-          )}
+-
+-          {adminTab === 'presentation' && (
+-            <motion.div key="presentation" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+-              <p className="mb-6 text-sm text-gray-500 font-medium text-center">靘? SA/SD 閮剛?嚗?港???Excel?DF?XT?NG 蝝?嚗頂蝯勗??芸??斗撖急?銝衣???PPTX??/p>
+-              
+-              <div className="flex flex-col sm:flex-row gap-6">
+-                <div className="flex-1">
+-                  <label className="group relative flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-gray-300 bg-white hover:bg-indigo-50/30 hover:border-indigo-500 transition-all px-6 py-12">
+-                     <div className="rounded-2xl bg-indigo-50 p-4 transition-transform group-hover:scale-110 mb-4">
+-                        <FileText className="h-8 w-8 text-indigo-600" />
+-                     </div>
+-                     <p className="text-base font-bold text-gray-900 mb-1">銝?祇勗????/p>
+-                     <p className="text-xs font-medium text-gray-500 text-center">?舀憭瑼? (Excel, PDF, TXT...)</p>
+-                     <input type="file" className="hidden" multiple onChange={handlePresentationUpload} />
+-                  </label>
+-                  
+-                  {presentationFiles.length > 0 && (
+-                    <div className="mt-4 flex flex-col gap-2">
+-                      <p className="text-sm font-bold text-gray-700">撌脤??{presentationFiles.length} ??獢?</p>
+-                      <ul className="text-xs text-gray-500">
+-                        {presentationFiles.map((f, i) => (
+-                          <li key={i}>??{f.name}</li>
+-                        ))}
+-                      </ul>
+-                      <button 
+-                        onClick={generatePresentation}
+-                        disabled={generating}
+-                        className="mt-2 w-full flex justify-center items-center gap-2 bg-indigo-600 text-white rounded-xl px-4 py-3 font-bold hover:bg-indigo-700 disabled:opacity-50"
+-                      >
+-                        {generating ? <Loader2 className="h-5 w-5 animate-spin" /> : <Shield className="h-5 w-5" />}
+-                        ???箄??蝪∪
+-                      </button>
+-                    </div>
+-                  )}
+-                </div>
+-
+-                <div className="flex-1 bg-gray-50/50 rounded-3xl p-6 border border-gray-100">
+-                  <h4 className="font-bold text-gray-900 mb-4">??蝯??祟?詨?</h4>
+-                  
+-                  {!reportResult ? (
+-                    <div className="flex h-32 items-center justify-center text-sm text-gray-400 font-medium">
+-                      撠??蝪∪
+-                    </div>
+-                  ) : (
+-                    <div className="flex flex-col gap-4">
+-                      <div className="bg-white p-4 rounded-xl border border-gray-200">
+-                        <p className="text-xs text-gray-400 font-bold mb-1">蝟餌絞?斗撖急?</p>
+-                        <p className="text-lg font-black text-indigo-600">Type {reportResult.strategy_used.primary_style}</p>
+-                        <p className="text-sm text-gray-600 mt-1">{reportResult.strategy_used.reason}</p>
+-                      </div>
+-                      
+-                      <div className="bg-white p-4 rounded-xl border border-gray-200">
+-                        <p className="text-xs text-gray-400 font-bold mb-2">撱箄降撖拇皜</p>
+-                        <ul className="text-sm text-gray-600 flex flex-col gap-1">
+-                          {reportResult.strategy_used.review_points.map((pt: string, i: number) => (
+-                            <li key={i} className="flex items-center gap-2">
+-                              <AlertCircle className="w-4 h-4 text-orange-500" /> {pt}
+-                            </li>
+-                          ))}
+-                        </ul>
+-                      </div>
+-
+-                      <div className="flex gap-2 mt-2">
+-                        <a href={reportResult.download_url_pptx} className="flex-1 bg-green-50 text-green-600 font-bold text-sm rounded-lg px-4 py-3 text-center hover:bg-green-100 transition-colors">
+-                          銝? PPTX
+-                        </a>
+-                        <a href={reportResult.download_url_pdf} className="flex-1 bg-red-50 text-red-600 font-bold text-sm rounded-lg px-4 py-3 text-center hover:bg-red-100 transition-colors">
+-                          銝? PDF
+-                        </a>
+-                      </div>
+-                    </div>
+-                  )}
+-                </div>
+-              </div>
+-            </motion.div>
++        <div className="text-center w-full max-w-2xl mx-auto">
++          <label className={`group relative flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-gray-300 bg-white hover:bg-blue-50/30 hover:border-[#0071E3] transition-all px-6 py-16 ${uploading ? 'pointer-events-none opacity-50' : ''}`}>
++             <div className="rounded-2xl bg-blue-50 p-4 transition-transform group-hover:scale-110 mb-4">
++                <Upload className="h-8 w-8 text-blue-600" />
++             </div>
++             <p className="text-lg font-bold text-gray-900 mb-1">暺?????CSV 瑼??單迨</p>
++             <p className="text-sm font-medium text-gray-500">?舀?舀???.csv</p>
++             <input type="file" className="hidden" accept=".csv" onChange={handleFileUpload} disabled={uploading} ref={fileInputRef} />
++          </label>
++          {status.message && (
++            <div className="mt-6 flex flex-col items-center justify-center gap-3">
++              {uploading && <Loader2 className="h-8 w-8 animate-spin text-blue-500" /> }
++              <p className={`text-sm font-bold px-4 py-2 rounded-full ${status.type === 'error' ? 'bg-red-50 text-red-500' : status.type === 'success' ? 'bg-green-50 text-green-500' : 'bg-blue-50 text-blue-500'}`}>
++                {status.message}
++              </p>
++            </div>
+           )}
+-        </AnimatePresence>
++        </div>
+       </div>
+     </motion.div>
+   );
+
+commit daddff4c8d5265c5a7186d291b305bfe12cb4fe8
+Author: jaylue0509-tw <jaylue0509@gmail.com>
+Date:   Tue May 26 14:02:25 2026 +0800
+
+    feat: switch user login to manual name and email input
+
+diff --git a/src/App.tsx b/src/App.tsx
+index 9fbc6fd..3032b57 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -57,21 +57,49 @@ interface AttendanceRecord {
+   status: string;
+ }
+ 
++export interface AppUser {
++  email: string;
++  displayName: string;
++  isAdmin: boolean;
++}
++
+ export default function App() {
+-  const [user, setUser] = useState<User | null>(null);
++  const [user, setUser] = useState<AppUser | null>(null);
+   const [loading, setLoading] = useState(true);
+ 
+   useEffect(() => {
++    const studentData = localStorage.getItem('student_login');
++    if (studentData) {
++      setUser(JSON.parse(studentData));
++      setLoading(false);
++      return;
++    }
++
+     setPersistence(auth, browserLocalPersistence);
+     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+-      setUser(currentUser);
++      if (currentUser) {
++        setUser({ email: currentUser.email || '', displayName: currentUser.displayName || '蝞∠???, isAdmin: currentUser.email === ADMIN_EMAIL });
++      } else {
++        if (!localStorage.getItem('student_login')) {
++          setUser(null);
++        }
++      }
+       setLoading(false);
+     });
+     return () => unsubscribe();
+   }, []);
+ 
+   const handleLogout = () => {
+-    signOut(auth);
++    if (user?.isAdmin) {
++      signOut(auth);
++    } else {
++      localStorage.removeItem('student_login');
++      setUser(null);
++    }
++  };
++
++  const handleStudentLogin = (studentUser: AppUser) => {
++    setUser(studentUser);
+   };
+ 
+   if (loading) {
+@@ -94,7 +122,7 @@ export default function App() {
+       <main className="relative z-10 mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+         <AnimatePresence mode="wait">
+           {!user ? (
+-            <LoginScreen key="login" />
++            <LoginScreen key="login" onStudentLogin={handleStudentLogin} />
+           ) : (
+             <DashboardScreen key="dashboard" user={user} onLogout={handleLogout} />
+           )}
+@@ -105,23 +133,46 @@ export default function App() {
+ }
+ 
+ // --- Login Screen ---
+-function LoginScreen() {
++function LoginScreen({ onStudentLogin }: { onStudentLogin: (user: AppUser) => void; key?: string }) {
+   const [mode, setMode] = useState<'user' | 'admin'>('user');
+   
+   // Admin form state (NO DEFAULT VALUES AS REQUESTED)
+   const [adminEmail, setAdminEmail] = useState('');
+   const [adminPassword, setAdminPassword] = useState('');
++  
++  // Student form state
++  const [studentName, setStudentName] = useState('');
++  const [studentEmail, setStudentEmail] = useState('');
++
+   const [loginError, setLoginError] = useState('');
+   const [isLoggingIn, setIsLoggingIn] = useState(false);
+ 
+-  const handleGoogleLogin = async () => {
++  const handleStudentLogin = async (e: React.FormEvent) => {
++    e.preventDefault();
++    if (!studentName || !studentEmail) {
++      setLoginError('隢‵撖怠??游????砍靽∠拳');
++      return;
++    }
++    
++    setIsLoggingIn(true);
++    setLoginError('');
++    
+     try {
+-      setIsLoggingIn(true);
+-      setLoginError('');
+-      await signInWithPopup(auth, googleProvider);
+-    } catch (error: any) {
+-      console.error('Login error', error);
+-      setLoginError(error.message || '?餃憭望?嚗?蝔??岫??);
++      const q = query(collection(db, 'attendances'), where('email', '==', studentEmail.toLowerCase().trim()));
++      const snap = await getDocs(q);
++      
++      if (snap.empty) {
++        setLoginError('?亦甇支縑蝞梁?靽株玨蝝??隢Ⅱ隤縑蝞望?西撓?交迤蝣?);
++        setIsLoggingIn(false);
++        return;
++      }
++      
++      const userObj: AppUser = { email: studentEmail.toLowerCase().trim(), displayName: studentName.trim(), isAdmin: false };
++      localStorage.setItem('student_login', JSON.stringify(userObj));
++      onStudentLogin(userObj);
++    } catch (err: any) {
++      console.error('Student Login error', err);
++      setLoginError('?亥岷憭望?嚗?蝔??岫??);
+       setIsLoggingIn(false);
+     }
+   };
+@@ -154,13 +205,13 @@ function LoginScreen() {
+       {/* Toggle */}
+       <div className="flex bg-gray-200/50 rounded-full p-1.5 mb-10 backdrop-blur-md">
+         <button 
+-          onClick={() => setMode('user')}
++          onClick={() => { setMode('user'); setLoginError(''); }}
+           className={`px-8 py-2.5 rounded-full text-sm font-semibold transition-all ${mode === 'user' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+         >
+           ???亥岷
+         </button>
+         <button 
+-          onClick={() => setMode('admin')}
++          onClick={() => { setMode('admin'); setLoginError(''); }}
+           className={`px-8 py-2.5 rounded-full text-sm font-semibold transition-all ${mode === 'admin' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+         >
+           鈭箄?蝞∠?
+@@ -174,7 +225,7 @@ function LoginScreen() {
+             initial={{ opacity: 0, scale: 0.95 }}
+             animate={{ opacity: 1, scale: 1 }}
+             exit={{ opacity: 0, scale: 0.95 }}
+-            className="flex flex-col items-center"
++            className="flex flex-col items-center w-full max-w-sm"
+           >
+             <div className="mb-8 rounded-[2rem] bg-white/60 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white/40">
+               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-500 text-white shadow-lg">
+@@ -184,24 +235,41 @@ function LoginScreen() {
+             <h1 className="mb-4 text-4xl font-bold tracking-tight sm:text-5xl text-gray-900">
+               摮詨??亥岷蝟餌絞
+             </h1>
+-            <p className="mb-10 max-w-md text-lg text-gray-500 font-medium">
+-              ?箔???????刻??梁?嚗頂蝯勗歇????雿輻?函??砍 Google 撣唾??餃嚗??菜???撅砍飛蝧???+            <p className="mb-8 text-lg text-gray-500 font-medium">
++              隢撓?交?????砍靽∠拳嚗??菜???撅砍飛蝧???             </p>
+-            {loginError && <p className="mb-4 text-red-500 font-medium">{loginError}</p>}
+-            <button
+-              onClick={handleGoogleLogin}
+-              disabled={isLoggingIn}
+-              className="group relative flex items-center justify-center gap-3 overflow-hidden rounded-2xl bg-[#1D1D1F] px-8 py-4 text-lg font-medium text-white transition-all hover:bg-[#2D2D2F] active:scale-[0.98] disabled:opacity-70 disabled:active:scale-100"
+-            >
+-              {isLoggingIn ? <Loader2 className="h-6 w-6 animate-spin" /> : (
+-                <>
+-                  <span>Google ?餃?亦?摮詨?</span>
+-                  <motion.div className="rounded-full bg-white/20 p-1" whileHover={{ x: 3 }}>
+-                    <Search className="h-5 w-5" />
+-                  </motion.div>
+-                </>
+-              )}
+-            </button>
++            
++            <form onSubmit={handleStudentLogin} className="flex flex-col gap-4 w-full">
++              <input 
++                type="text" 
++                placeholder="隢撓?亙???(靘?: 瘙遣暾?" 
++                className="w-full bg-white/80 rounded-2xl px-6 py-4 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all text-gray-900 font-medium placeholder:text-gray-400 placeholder:font-normal border border-gray-200" 
++                value={studentName} 
++                onChange={e => setStudentName(e.target.value)}
++                disabled={isLoggingIn} 
++                autoComplete="name"
++              />
++              <input 
++                type="email" 
++                placeholder="隢撓?亙?訾縑蝞? 
++                className="w-full bg-white/80 rounded-2xl px-6 py-4 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all text-gray-900 font-medium placeholder:text-gray-400 placeholder:font-normal border border-gray-200" 
++                value={studentEmail} 
++                onChange={e => setStudentEmail(e.target.value)}
++                disabled={isLoggingIn}
++                autoComplete="email"
++              />
++              
++              {loginError && <p className="text-red-500 text-sm font-medium text-left px-2">{loginError}</p>}
++              
++              <button 
++                type="submit" 
++                disabled={isLoggingIn}
++                className="w-full bg-[#1D1D1F] text-white rounded-2xl px-6 py-4 font-bold flex justify-center items-center gap-2 mt-2 hover:bg-[#2D2D2F] transition-all active:scale-[0.98] disabled:opacity-70 disabled:active:scale-100"
++              >
++                {isLoggingIn ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />} 
++                ?亥岷摮詨?蝝??+              </button>
++            </form>
+           </motion.div>
+         ) : (
+           <motion.div
+@@ -261,7 +329,7 @@ function LoginScreen() {
+ }
+ 
+ // --- Dashboard Screen ---
+-function DashboardScreen({ user, onLogout }: { user: User; onLogout: () => void }) {
++function DashboardScreen({ user, onLogout }: { user: AppUser; onLogout: () => void; key?: string }) {
+   const isAdmin = user.email === ADMIN_EMAIL;
+ 
+   return (
+@@ -304,7 +372,7 @@ function DashboardScreen({ user, onLogout }: { user: User; onLogout: () => void
+ }
+ 
+ // --- My Courses View ---
+-function MyCoursesView({ userEmail }: { userEmail: string }) {
++function MyCoursesView({ userEmail }: { userEmail: string; key?: string }) {
+   const [records, setRecords] = useState<AttendanceRecord[]>([]);
+   const [loading, setLoading] = useState(true);
+ 
+
+commit 0d8f0bf18185199cb88817dfa3273ca57e730ef9
+Author: jaylue0509-tw <jaylue0509@gmail.com>
+Date:   Thu May 21 16:34:16 2026 +0800
+
+    feat: Add Automated Presentation System UI and Backend framework
+
+diff --git a/src/App.tsx b/src/App.tsx
+index d0dc96d..9fbc6fd 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -1,14 +1,14 @@
+ import React, { useEffect, useState, useRef } from 'react';
+ import { motion, AnimatePresence } from 'motion/react';
+-import { Search, LogOut, Upload, BookOpen, Clock, Award, AlertCircle, Loader2 } from 'lucide-react';
+-import { signInWithPopup, onAuthStateChanged, User, signOut, setPersistence, browserLocalPersistence } from 'firebase/auth';
++import { Search, LogOut, Upload, BookOpen, Clock, Award, AlertCircle, Loader2, Shield, ChevronLeft, FileText } from 'lucide-react';
++import { signInWithPopup, signInWithEmailAndPassword, onAuthStateChanged, User, signOut, setPersistence, browserLocalPersistence } from 'firebase/auth';
+ import { collection, query, where, getDocs, writeBatch, doc } from 'firebase/firestore';
+ import Papa from 'papaparse';
+ 
+ import { auth, googleProvider, db } from './firebase';
+ 
+ // Constants
+-const ADMIN_EMAIL = 'jaylue0509@gmail.com';
++const ADMIN_EMAIL = 'admin@hr.com';
+ 
+ enum OperationType {
+   CREATE = 'create',
+@@ -23,17 +23,7 @@ interface FirestoreErrorInfo {
+   error: string;
+   operationType: OperationType;
+   path: string | null;
+-  authInfo: {
+-    userId?: string | null;
+-    email?: string | null;
+-    emailVerified?: boolean | null;
+-    isAnonymous?: boolean | null;
+-    tenantId?: string | null;
+-    providerInfo?: {
+-      providerId?: string | null;
+-      email?: string | null;
+-    }[];
+-  }
++  authInfo: any;
+ }
+ 
+ function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+@@ -42,13 +32,6 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
+     authInfo: {
+       userId: auth.currentUser?.uid,
+       email: auth.currentUser?.email,
+-      emailVerified: auth.currentUser?.emailVerified,
+-      isAnonymous: auth.currentUser?.isAnonymous,
+-      tenantId: auth.currentUser?.tenantId,
+-      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+-        providerId: provider.providerId,
+-        email: provider.email,
+-      })) || []
+     },
+     operationType,
+     path
+@@ -87,23 +70,14 @@ export default function App() {
+     return () => unsubscribe();
+   }, []);
+ 
+-  const handleLogin = async () => {
+-    try {
+-      await signInWithPopup(auth, googleProvider);
+-    } catch (error) {
+-      console.error('Login error', error);
+-      alert('?餃憭望?嚗?蝔??岫??);
+-    }
+-  };
+-
+   const handleLogout = () => {
+     signOut(auth);
+   };
+ 
+   if (loading) {
+     return (
+-      <div className="flex h-screen items-center justify-center bg-gray-50">
+-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
++      <div className="flex h-screen items-center justify-center bg-[#F5F5F7]">
++        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+       </div>
+     );
+   }
+@@ -120,7 +94,7 @@ export default function App() {
+       <main className="relative z-10 mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+         <AnimatePresence mode="wait">
+           {!user ? (
+-            <LoginScreen key="login" onLogin={handleLogin} />
++            <LoginScreen key="login" />
+           ) : (
+             <DashboardScreen key="dashboard" user={user} onLogout={handleLogout} />
+           )}
+@@ -131,7 +105,44 @@ export default function App() {
+ }
+ 
+ // --- Login Screen ---
+-function LoginScreen({ onLogin }: { onLogin: () => void }) {
++function LoginScreen() {
++  const [mode, setMode] = useState<'user' | 'admin'>('user');
++  
++  // Admin form state (NO DEFAULT VALUES AS REQUESTED)
++  const [adminEmail, setAdminEmail] = useState('');
++  const [adminPassword, setAdminPassword] = useState('');
++  const [loginError, setLoginError] = useState('');
++  const [isLoggingIn, setIsLoggingIn] = useState(false);
++
++  const handleGoogleLogin = async () => {
++    try {
++      setIsLoggingIn(true);
++      setLoginError('');
++      await signInWithPopup(auth, googleProvider);
++    } catch (error: any) {
++      console.error('Login error', error);
++      setLoginError(error.message || '?餃憭望?嚗?蝔??岫??);
++      setIsLoggingIn(false);
++    }
++  };
++
++  const handleAdminLogin = async (e: React.FormEvent) => {
++    e.preventDefault();
++    if (!adminEmail || !adminPassword) {
++      setLoginError('隢‵撖怠??游董??蝣?);
++      return;
++    }
++    try {
++      setIsLoggingIn(true);
++      setLoginError('');
++      await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
++    } catch (error: any) {
++      console.error('Admin Login error', error);
++      setLoginError('撣唾???蝣潮隤?);
++      setIsLoggingIn(false);
++    }
++  };
++
+   return (
+     <motion.div
+       initial={{ opacity: 0, y: 20 }}
+@@ -140,29 +151,111 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
+       transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
+       className="flex min-h-[80vh] flex-col items-center justify-center text-center"
+     >
+-      <div className="mb-8 rounded-3xl bg-white/60 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white/40">
+-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-500 text-white shadow-lg">
+-          <BookOpen className="h-8 w-8" />
+-        </div>
+-      </div>
+-      <h1 className="mb-4 text-4xl font-semibold tracking-tight sm:text-5xl">
+-        摮詨??亥岷蝟餌絞
+-      </h1>
+-      <p className="mb-10 max-w-md text-lg text-[#86868B]">
+-        ?箔???????刻??梁?嚗頂蝯勗歇????雿輻?函??砍 Google 撣唾??餃嚗??菜???撅砍飛蝧???-      </p>
+-      <button
+-        onClick={onLogin}
+-        className="group relative flex items-center justify-center gap-3 overflow-hidden rounded-full bg-[#1D1D1F] px-8 py-4 text-lg font-medium text-white transition-all hover:scale-[1.02] hover:bg-[#2D2D2F] active:scale-95"
+-      >
+-        <span>Google ?餃?亦?摮詨?</span>
+-        <motion.div
+-          className="rounded-full bg-white/20 p-1"
+-          whileHover={{ x: 3 }}
++      {/* Toggle */}
++      <div className="flex bg-gray-200/50 rounded-full p-1.5 mb-10 backdrop-blur-md">
++        <button 
++          onClick={() => setMode('user')}
++          className={`px-8 py-2.5 rounded-full text-sm font-semibold transition-all ${mode === 'user' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
++        >
++          ???亥岷
++        </button>
++        <button 
++          onClick={() => setMode('admin')}
++          className={`px-8 py-2.5 rounded-full text-sm font-semibold transition-all ${mode === 'admin' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+         >
+-          <Search className="h-5 w-5" />
+-        </motion.div>
+-      </button>
++          鈭箄?蝞∠?
++        </button>
++      </div>
++
++      <AnimatePresence mode="wait">
++        {mode === 'user' ? (
++          <motion.div
++            key="user"
++            initial={{ opacity: 0, scale: 0.95 }}
++            animate={{ opacity: 1, scale: 1 }}
++            exit={{ opacity: 0, scale: 0.95 }}
++            className="flex flex-col items-center"
++          >
++            <div className="mb-8 rounded-[2rem] bg-white/60 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white/40">
++              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-500 text-white shadow-lg">
++                <BookOpen className="h-8 w-8" />
++              </div>
++            </div>
++            <h1 className="mb-4 text-4xl font-bold tracking-tight sm:text-5xl text-gray-900">
++              摮詨??亥岷蝟餌絞
++            </h1>
++            <p className="mb-10 max-w-md text-lg text-gray-500 font-medium">
++              ?箔???????刻??梁?嚗頂蝯勗歇????雿輻?函??砍 Google 撣唾??餃嚗??菜???撅砍飛蝧???+            </p>
++            {loginError && <p className="mb-4 text-red-500 font-medium">{loginError}</p>}
++            <button
++              onClick={handleGoogleLogin}
++              disabled={isLoggingIn}
++              className="group relative flex items-center justify-center gap-3 overflow-hidden rounded-2xl bg-[#1D1D1F] px-8 py-4 text-lg font-medium text-white transition-all hover:bg-[#2D2D2F] active:scale-[0.98] disabled:opacity-70 disabled:active:scale-100"
++            >
++              {isLoggingIn ? <Loader2 className="h-6 w-6 animate-spin" /> : (
++                <>
++                  <span>Google ?餃?亦?摮詨?</span>
++                  <motion.div className="rounded-full bg-white/20 p-1" whileHover={{ x: 3 }}>
++                    <Search className="h-5 w-5" />
++                  </motion.div>
++                </>
++              )}
++            </button>
++          </motion.div>
++        ) : (
++          <motion.div
++            key="admin"
++            initial={{ opacity: 0, scale: 0.95 }}
++            animate={{ opacity: 1, scale: 1 }}
++            exit={{ opacity: 0, scale: 0.95 }}
++            className="bg-white/80 rounded-[2.5rem] p-10 shadow-[0_8px_30px_rgb(0,0,0,0.08)] backdrop-blur-xl border border-white w-full max-w-md"
++          >
++            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 mb-6">
++              <Shield className="h-8 w-8" />
++            </div>
++            <h2 className="text-2xl font-bold text-gray-900 mb-2">鈭箄?蝞∠?????/h2>
++            <p className="text-gray-500 font-medium mb-8">隢撓?交?恣?撣唾?撖Ⅳ</p>
++            
++            <form onSubmit={handleAdminLogin} className="flex flex-col gap-4">
++              <input 
++                type="email" 
++                placeholder="隢撓?亦恣?靽∠拳" 
++                className="w-full bg-blue-50/40 rounded-2xl px-6 py-4 outline-none focus:bg-blue-50 focus:ring-2 focus:ring-blue-500/20 transition-all text-gray-900 font-medium placeholder:text-gray-400 placeholder:font-normal" 
++                value={adminEmail} 
++                onChange={e => setAdminEmail(e.target.value)}
++                disabled={isLoggingIn} 
++                autoComplete="off"
++              />
++              <input 
++                type="password" 
++                placeholder="隢撓?亙?蝣? 
++                className="w-full bg-blue-50/40 rounded-2xl px-6 py-4 outline-none focus:bg-blue-50 focus:ring-2 focus:ring-blue-500/20 transition-all text-gray-900 font-medium placeholder:text-gray-400 placeholder:font-normal" 
++                value={adminPassword} 
++                onChange={e => setAdminPassword(e.target.value)}
++                disabled={isLoggingIn}
++                autoComplete="new-password"
++              />
++              
++              {loginError && <p className="text-red-500 text-sm font-medium text-left px-2">{loginError}</p>}
++              
++              <button 
++                type="submit" 
++                disabled={isLoggingIn}
++                className="w-full bg-[#1D1D1F] text-white rounded-2xl px-6 py-4 font-bold flex justify-center items-center gap-2 mt-2 hover:bg-[#2D2D2F] transition-all active:scale-[0.98] disabled:opacity-70 disabled:active:scale-100"
++              >
++                {isLoggingIn ? <Loader2 className="h-5 w-5 animate-spin" /> : <Shield className="h-5 w-5" />} 
++                摰?餃
++              </button>
++            </form>
++
++            <div className="mt-8 bg-indigo-50/40 rounded-2xl p-6 border border-indigo-100/50 text-left">
++              <h3 className="text-indigo-600 font-bold text-sm mb-2">甈?隤芣?</h3>
++              <p className="text-sm text-gray-600 font-medium leading-relaxed">蝞∠??∪銵蝟餌絞鞈??臬??方?蝝???臬?函??遢????甈縑蝞梯赤??/p>
++            </div>
++          </motion.div>
++        )}
++      </AnimatePresence>
+     </motion.div>
+   );
+ }
+@@ -170,66 +263,37 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
+ // --- Dashboard Screen ---
+ function DashboardScreen({ user, onLogout }: { user: User; onLogout: () => void }) {
+   const isAdmin = user.email === ADMIN_EMAIL;
+-  const [activeTab, setActiveTab] = useState<'my-courses' | 'admin'>(isAdmin ? 'admin' : 'my-courses');
+ 
+   return (
+     <motion.div
+       initial={{ opacity: 0 }}
+       animate={{ opacity: 1 }}
+       transition={{ duration: 0.6 }}
+-      className="flex flex-col gap-8"
++      className="flex flex-col gap-6"
+     >
+-      {/* Header */}
+-      <header className="flex w-full items-center justify-between rounded-3xl bg-white/70 px-6 py-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white/50">
+-        <div className="flex items-center gap-4">
+-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+-            <UserAvatar name={user.displayName || '?'} />
++      {/* Header matching screenshot */}
++      <header className="flex w-full items-center justify-between rounded-full bg-white/80 px-4 py-3 shadow-[0_4px_20px_rgb(0,0,0,0.03)] backdrop-blur-xl border border-white">
++        <button 
++          onClick={onLogout}
++          className="flex items-center gap-2 text-blue-600 hover:bg-blue-50 px-4 py-2 rounded-full transition-colors font-bold text-sm"
++        >
++          <ChevronLeft className="h-5 w-5" /> 餈??亥岷
++        </button>
++        
++        <div className="flex items-center gap-3 pr-2">
++          <div className="text-right">
++            <h2 className="text-base font-bold tracking-tight text-gray-900">{user.displayName || (isAdmin ? '蝞∠??? : '雿輻??)}</h2>
++            <p className="text-[10px] font-bold text-gray-400 uppercase">{user.email}</p>
+           </div>
+-          <div>
+-            <h2 className="text-xl font-semibold tracking-tight">{user.displayName}</h2>
+-            <p className="text-sm text-[#86868B]">{user.email}</p>
++          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-500 border border-gray-200">
++            <FileText className="h-5 w-5" />
+           </div>
+         </div>
+-        
+-        <div className="flex items-center gap-4">
+-          {isAdmin && (
+-            <div className="flex rounded-full bg-gray-100/80 p-1 backdrop-blur-md">
+-              <button
+-                onClick={() => setActiveTab('admin')}
+-                className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
+-                  activeTab === 'admin'
+-                    ? 'bg-white text-black shadow-sm'
+-                    : 'text-gray-500 hover:text-black'
+-                }`}
+-              >
+-                蝟餌絞蝞∠?
+-              </button>
+-              <button
+-                onClick={() => setActiveTab('my-courses')}
+-                className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
+-                  activeTab === 'my-courses'
+-                    ? 'bg-white text-black shadow-sm'
+-                    : 'text-gray-500 hover:text-black'
+-                }`}
+-              >
+-                ??摮詨?
+-              </button>
+-            </div>
+-          )}
+-
+-          <button
+-            onClick={onLogout}
+-            className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200"
+-            title="?餃"
+-          >
+-            <LogOut className="h-5 w-5" />
+-          </button>
+-        </div>
+       </header>
+ 
+       {/* Content */}
+       <AnimatePresence mode="wait">
+-        {activeTab === 'my-courses' ? (
++        {!isAdmin ? (
+           <MyCoursesView key="my-courses" userEmail={user.email || ''} />
+         ) : (
+           <AdminView key="admin" />
+@@ -254,7 +318,6 @@ function MyCoursesView({ userEmail }: { userEmail: string }) {
+           data.push({ id: doc.id, ...doc.data() } as AttendanceRecord);
+         });
+         
+-        // Filter "撌脣?? only and sort by date
+         const validRecords = data
+           .filter(r => r.status === '撌脣??)
+           .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+@@ -277,8 +340,21 @@ function MyCoursesView({ userEmail }: { userEmail: string }) {
+     );
+   }
+ 
+-  const totalCredits = records.reduce((sum, record) => sum + (Number(record.hours) || 0), 0);
+-  const totalCourses = records.length;
++  // Filter for AI courses ONLY for the top calculations! (This fixes Issue #1)
++  const isAICourse = (r: AttendanceRecord) => r.aiCredit === 'AI 摮詨?隤脩?' || r.aiCredit === 'V' || r.courseName.includes('AI');
++  const aiRecords = records.filter(isAICourse);
++
++  const totalAICredits = aiRecords.reduce((sum, record) => sum + (Number(record.hours) || 0), 0);
++  const totalAICourses = aiRecords.length;
++  
++  const requiredCount = aiRecords.filter(r => r.electiveOrRequired === '敹耨').length;
++  const electiveCount = aiRecords.filter(r => r.electiveOrRequired === '?訾耨').length;
++  
++  const requiredTarget = 2;
++  const electiveTarget = 4;
++  
++  const requiredMissing = Math.max(0, requiredTarget - requiredCount);
++  const electiveMissing = Math.max(0, electiveTarget - electiveCount);
+ 
+   return (
+     <motion.div
+@@ -287,63 +363,120 @@ function MyCoursesView({ userEmail }: { userEmail: string }) {
+       exit={{ opacity: 0, y: -10 }}
+       className="flex flex-col gap-6"
+     >
+-      {/* Stats row */}
+-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+-        <div className="flex items-center gap-6 rounded-3xl bg-white/70 p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white/50">
+-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-100 text-blue-600">
+-            <Award className="h-8 w-8" />
++      {/* 4 Cards Stats row */}
++      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
++        
++        {/* Card 1 */}
++        <div className="flex flex-col justify-center gap-2 rounded-[2rem] bg-white/80 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
++          <div className="flex justify-between items-start">
++            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-500">
++              <Award className="h-7 w-7" />
++            </div>
++            <div className="text-right flex flex-col items-end">
++              <p className="text-xs font-bold text-gray-400 mb-1">蝝航?靽株玨?</p>
++              <div className="flex items-baseline gap-1">
++                <span className="text-4xl font-black tracking-tight text-gray-900">{totalAICredits}</span>
++                <span className="text-xs font-bold text-gray-400">?</span>
++              </div>
++            </div>
++          </div>
++        </div>
++
++        {/* Card 2 */}
++        <div className="flex flex-col justify-center gap-2 rounded-[2rem] bg-white/80 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
++          <div className="flex justify-between items-start">
++            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-500">
++              <BookOpen className="h-7 w-7" />
++            </div>
++            <div className="text-right flex flex-col items-end">
++              <p className="text-xs font-bold text-gray-400 mb-1">摰?隤脩?蝮賣</p>
++              <div className="flex items-baseline gap-1">
++                <span className="text-4xl font-black tracking-tight text-gray-900">{totalAICourses}</span>
++                <span className="text-xs font-bold text-gray-400">隤脩?</span>
++              </div>
++            </div>
++          </div>
++        </div>
++
++        {/* Card 3: 敹耨 */}
++        <div className="flex flex-col justify-center rounded-[2rem] bg-white/80 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
++          <div className="flex justify-between items-center mb-4">
++            <span className="px-3 py-1 bg-red-50 text-red-500 text-xs font-bold rounded-full">敹耨</span>
++            <span className="text-gray-400 text-sm font-bold">{requiredCount}/{requiredTarget}</span>
+           </div>
+-          <div>
+-            <p className="text-sm font-medium text-[#86868B]">蝮賜?飛??/p>
+-            <p className="text-4xl font-semibold tracking-tight">{totalCredits}<span className="ml-1 text-xl font-normal text-gray-500">摮詨?</span></p>
++          <div className="w-full bg-gray-100 rounded-full h-2 mb-3 overflow-hidden">
++            <div className="bg-red-400 h-2 rounded-full" style={{ width: `${Math.min(100, (requiredCount/requiredTarget)*100)}%` }}></div>
+           </div>
++          <p className="text-xs text-gray-400 font-bold">
++            {requiredMissing > 0 ? `撌?${requiredMissing} ??璅 : '撌脤?璅?}
++          </p>
+         </div>
+-        <div className="flex items-center gap-6 rounded-3xl bg-white/70 p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white/50">
+-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-600">
+-            <BookOpen className="h-8 w-8" />
++
++        {/* Card 4: ?訾耨 */}
++        <div className="flex flex-col justify-center rounded-[2rem] bg-white/80 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
++          <div className="flex justify-between items-center mb-4">
++            <span className="px-3 py-1 bg-purple-50 text-purple-500 text-xs font-bold rounded-full">?訾耨</span>
++            <span className="text-gray-400 text-sm font-bold">{electiveCount}/{electiveTarget}</span>
+           </div>
+-          <div>
+-            <p className="text-sm font-medium text-[#86868B]">撌脣??玨蝔?/p>
+-            <p className="text-4xl font-semibold tracking-tight">{totalCourses}<span className="ml-1 text-xl font-normal text-gray-500">??/span></p>
++          <div className="w-full bg-gray-100 rounded-full h-2 mb-3 overflow-hidden">
++            <div className="bg-purple-400 h-2 rounded-full" style={{ width: `${Math.min(100, (electiveCount/electiveTarget)*100)}%` }}></div>
+           </div>
++          <p className="text-xs text-gray-400 font-bold">
++            {electiveMissing > 0 ? `撌?${electiveMissing} ??璅 : '撌脤?璅?}
++          </p>
+         </div>
++
+       </div>
+ 
+       {/* Course List */}
+-      <div className="rounded-3xl bg-white/70 p-2 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white/50">
+-        <div className="px-6 py-5">
+-          <h3 className="text-xl font-semibold tracking-tight">靽株玨蝝??/h3>
+-          <p className="text-sm text-[#86868B] mt-1">甇文?銵典?憿舐內???歇?勗??蝝??/p>
++      <div className="rounded-[2.5rem] bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
++        <div className="px-8 py-8 pb-4">
++          <div className="flex justify-between items-center mb-5">
++            <h3 className="text-xl font-black tracking-tight text-gray-900">AI摮詨?隤脩?</h3>
++            <span className="text-xs font-bold text-orange-500 bg-orange-50 px-3 py-1.5 rounded-full flex items-center gap-1.5">
++              <span className="w-1.5 h-1.5 rounded-full bg-orange-400"></span> ?∟?摮詨? ??{totalAICourses} 蝑?+            </span>
++          </div>
++          
++          <div className="flex gap-3 text-xs font-bold mb-2">
++            <span className="flex items-center gap-1.5 bg-gray-50 text-gray-500 px-3 py-1.5 rounded-full border border-gray-100">
++              <Clock className="w-3.5 h-3.5" /> {totalAICredits} 撠???+            </span>
++            <span className="text-red-500 bg-red-50 px-3 py-1.5 rounded-full">敹耨 {requiredCount} ??/span>
++            <span className="text-purple-500 bg-purple-50 px-3 py-1.5 rounded-full">?訾耨 {electiveCount} ??/span>
++          </div>
+         </div>
+         
+-        {records.length === 0 ? (
++        {aiRecords.length === 0 ? (
+           <div className="flex flex-col items-center justify-center py-16 text-center">
+             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-gray-400">
+               <AlertCircle className="h-8 w-8" />
+             </div>
+-            <p className="text-lg font-medium text-gray-900">?桀?撠摮詨?蝝??/p>
+-            <p className="mt-1 text-sm text-gray-500">?嗆摰?隤脩??勗敺?蝝???＊蝷箸甇扎?/p>
++            <p className="text-lg font-bold text-gray-900">?桀?撠摮詨?蝝??/p>
++            <p className="mt-1 text-sm font-medium text-gray-500">?嗆摰?隤脩??勗敺?蝝???＊蝷箸甇扎?/p>
+           </div>
+         ) : (
+-          <ul className="divide-y divide-gray-100/50">
+-            {records.map((record) => (
+-              <li key={record.id} className="px-6 py-5 transition-colors hover:bg-white/40 sm:rounded-2xl">
+-                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+-                  <div className="flex flex-1 flex-col gap-1">
+-                    <p className="text-sm font-medium text-blue-600">{record.electiveOrRequired} ??{record.aiCredit === 'V' ? 'AI 摮詨?' : '銝?砍飛??}</p>
+-                    <p className="text-lg font-medium tracking-tight text-gray-900">{record.courseName}</p>
+-                    <div className="mt-1 flex items-center gap-4 text-sm text-gray-500">
+-                      <span className="flex items-center gap-1">
+-                        <Clock className="h-4 w-4" />
+-                        {record.date} {record.time}
++          <ul className="divide-y divide-gray-100/60 px-4 pb-4">
++            {aiRecords.map((record) => (
++              <li key={record.id} className="p-4 transition-colors hover:bg-white/60 rounded-2xl group flex flex-col sm:flex-row sm:items-center justify-between gap-4">
++                <div className="flex gap-4 items-start">
++                  <div className="hidden sm:flex mt-1 w-12 h-12 rounded-xl bg-orange-50 text-orange-500 items-center justify-center font-black text-sm text-center leading-tight tracking-wider">
++                    鈭箏極<br/>?箸
++                  </div>
++                  <div className="flex flex-col gap-1.5">
++                    <div className="flex items-center gap-2">
++                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm ${record.electiveOrRequired === '敹耨' ? 'text-red-500 bg-red-50' : 'text-purple-500 bg-purple-50'}`}>
++                        {record.electiveOrRequired}
+                       </span>
+-                      <span>{record.company} / {record.department}</span>
++                      <span className="text-xs text-gray-400 font-bold">{record.date}</span>
+                     </div>
++                    <p className="text-base font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{record.courseName}</p>
++                    <p className="text-xs text-gray-400 font-bold">{record.company}繚{record.department}</p>
+                   </div>
+-                  <div className="flex items-baseline gap-1 sm:flex-col sm:items-end sm:justify-center">
+-                    <span className="text-2xl font-semibold text-gray-900">+{record.hours}</span>
+-                    <span className="text-sm font-medium text-gray-500">摮詨?</span>
+-                  </div>
++                </div>
++                <div className="flex flex-col items-end justify-center pr-2">
++                  <span className="text-xl font-black text-gray-900">+{record.hours}</span>
++                  <span className="text-[10px] font-bold text-gray-400">?</span>
+                 </div>
+               </li>
+             ))}
+@@ -356,10 +489,18 @@ function MyCoursesView({ userEmail }: { userEmail: string }) {
+ 
+ // --- Admin View ---
+ function AdminView() {
++  const [adminTab, setAdminTab] = useState<'attendance' | 'presentation'>('attendance');
++  
++  // --- Attendance Upload State ---
+   const [uploading, setUploading] = useState(false);
+   const [status, setStatus] = useState<{ type: 'idle' | 'success' | 'error'; message: string }>({ type: 'idle', message: '' });
+   const fileInputRef = useRef<HTMLInputElement>(null);
+ 
++  // --- Presentation Generation State ---
++  const [presentationFiles, setPresentationFiles] = useState<File[]>([]);
++  const [generating, setGenerating] = useState(false);
++  const [reportResult, setReportResult] = useState<any>(null);
++
+   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+     const file = event.target.files?.[0];
+     if (!file) return;
+@@ -373,18 +514,11 @@ function AdminView() {
+       complete: async (results) => {
+         try {
+           const data = results.data as any[];
+-          
+-          if (!data || data.length === 0) {
+-            throw new Error('?芣?啗????澆?銝泵');
+-          }
++          if (!data || data.length === 0) throw new Error('?芣?啗????澆?銝泵');
+ 
+-          // Format incoming CSV base mapping
+-          // Columns: AI摮詨?,??敹耨,?交?,??,隤脩??迂,?,?砍,憪?,?券?,?瑞迂,?勗?瘜?email
+-          
+           const formattedRecords: AttendanceRecord[] = [];
+           
+           for(const row of data) {
+-            // Because headers might have extra spaces or different casing depending on tools, normalize access
+             const email = (row['email'] || row['Email'] || '').trim().toLowerCase();
+             const name = (row['憪?'] || '').trim();
+             const courseName = (row['隤脩??迂'] || '').trim();
+@@ -392,9 +526,7 @@ function AdminView() {
+             const hours = parseFloat(rawHours);
+             const attendanceStatus = (row['?勗?瘜?] || '').trim();
+             
+-            if(!email || !name || !courseName) {
+-              continue; // Skip invalid lines gracefully
+-            }
++            if(!email || !name || !courseName) continue;
+             
+             formattedRecords.push({
+               email: email,
+@@ -412,23 +544,12 @@ function AdminView() {
+             });
+           }
+ 
+-          if(formattedRecords.length === 0) {
+-           throw new Error('?⊥????? (隢炎?交?雿?蝔望?血???email, 憪?, 隤脩??迂)');
+-          }
++          if(formattedRecords.length === 0) throw new Error('?⊥?????');
+ 
+           setStatus({ type: 'idle', message: '?芷??鞈?銝?..' });
+ 
+-          // 1. Delete all existing records
+-          // In an enterprise app, we might paginate deletion.
+-          // For simplicity in this demo, we fetch all and batch delete 500 at a time.
+           const collectionRef = collection(db, 'attendances');
+-          let oldDocs;
+-          try {
+-            oldDocs = await getDocs(collectionRef);
+-          } catch (e) {
+-             handleFirestoreError(e, OperationType.LIST, 'attendances');
+-             return;
+-          }
++          const oldDocs = await getDocs(collectionRef);
+           
+           let deleteBatch = writeBatch(db);
+           let deleteCount = 0;
+@@ -436,61 +557,35 @@ function AdminView() {
+             deleteBatch.delete(d.ref);
+             deleteCount++;
+             if(deleteCount === 500) {
+-              try {
+-                await deleteBatch.commit();
+-              } catch (e) {
+-                handleFirestoreError(e, OperationType.DELETE, 'attendances');
+-              }
++              await deleteBatch.commit();
+               deleteBatch = writeBatch(db);
+               deleteCount = 0;
+             }
+           }
+-          if(deleteCount > 0) {
+-            try {
+-              await deleteBatch.commit();
+-            } catch(e) {
+-              handleFirestoreError(e, OperationType.DELETE, 'attendances');
+-            }
+-          }
++          if(deleteCount > 0) await deleteBatch.commit();
+ 
+           setStatus({ type: 'idle', message: `撖怠 ${formattedRecords.length} 蝑鞈?銝?..` });
+ 
+-          // 2. Insert new records in batches of 500
+           let insertBatch = writeBatch(db);
+           let insertCount = 0;
+-          
+           for (const record of formattedRecords) {
+-            const newDocRef = doc(collectionRef); // auto-generate ID
++            const newDocRef = doc(collectionRef);
+             insertBatch.set(newDocRef, record);
+             insertCount++;
+-            
+             if(insertCount === 500) {
+-              try {
+                await insertBatch.commit();
+-              } catch(e) {
+-                handleFirestoreError(e, OperationType.WRITE, 'attendances');
+-              }
+                insertBatch = writeBatch(db);
+                insertCount = 0;
+             }
+           }
+-          if(insertCount > 0) {
+-            try {
+-              await insertBatch.commit();
+-            } catch(e) {
+-              handleFirestoreError(e, OperationType.WRITE, 'attendances');
+-            }
+-          }
++          if(insertCount > 0) await insertBatch.commit();
+ 
+           setStatus({ type: 'success', message: `???臬銝西???${formattedRecords.length} 蝑???` });
+         } catch (error: any) {
+-          console.error("Upload error", error);
+           setStatus({ type: 'error', message: error.message || '?臬憭望?' });
+         } finally {
+           setUploading(false);
+-          if (fileInputRef.current) {
+-            fileInputRef.current.value = '';
+-          }
++          if (fileInputRef.current) fileInputRef.current.value = '';
+         }
+       },
+       error: (error) => {
+@@ -500,56 +595,169 @@ function AdminView() {
+     });
+   };
+ 
++  const handlePresentationUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
++    if (event.target.files) {
++      setPresentationFiles(Array.from(event.target.files));
++    }
++  };
++
++  const generatePresentation = async () => {
++    if (presentationFiles.length === 0) return;
++    setGenerating(true);
++    
++    const formData = new FormData();
++    presentationFiles.forEach(file => {
++      formData.append('files', file);
++    });
++
++    try {
++      // ?澆 FastAPI 敺垢 (?身敺垢??localhost:8000 ?瑁?)
++      const response = await fetch('http://localhost:8000/api/generate-report', {
++        method: 'POST',
++        body: formData,
++      });
++      
++      if (!response.ok) {
++        throw new Error('??憭望?嚗?蝣箄?敺垢???臬??');
++      }
++      
++      const data = await response.json();
++      setReportResult(data);
++    } catch (error: any) {
++      alert(error.message);
++    } finally {
++      setGenerating(false);
++    }
++  };
++
+   return (
+     <motion.div
+       initial={{ opacity: 0, scale: 0.98 }}
+       animate={{ opacity: 1, scale: 1 }}
+       exit={{ opacity: 0, scale: 0.98 }}
+-      className="overflow-hidden rounded-3xl bg-white/70 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white/50"
++      className="overflow-hidden rounded-[2.5rem] bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white"
+     >
+-      <div className="border-b border-gray-100/50 bg-white/30 px-8 py-6">
+-        <h3 className="text-xl font-semibold tracking-tight text-gray-900">蝟餌絞蝞∠?</h3>
+-        <p className="mt-1 text-sm text-gray-500">?湔銝??啁? CSV 瑼?嚗頂蝯勗????刻???蝝??隞交??唳?獢銝颯?/p>
++      <div className="border-b border-gray-100/60 bg-white/40 px-8 py-6">
++        <h3 className="text-xl font-bold tracking-tight text-gray-900 mb-4">蝟餌絞蝞∠?</h3>
++        
++        {/* Tab ?? */}
++        <div className="flex gap-2">
++          <button 
++            onClick={() => setAdminTab('attendance')}
++            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${adminTab === 'attendance' ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-50'}`}
++          >
++            摮詨?鞈??臬
++          </button>
++          <button 
++            onClick={() => setAdminTab('presentation')}
++            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${adminTab === 'presentation' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500 hover:bg-gray-50'}`}
++          >
++            ?芸??陛?梁???+          </button>
++        </div>
+       </div>
+-      <div className="p-8 pb-12 text-center">
+-        <label
+-           className={`group relative flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-gray-300 bg-white hover:bg-gray-50/50 hover:border-[#0071E3] transition-all px-6 py-12 ${uploading ? 'pointer-events-none opacity-50' : ''}`}
+-        >
+-           <div className="rounded-full bg-blue-50 p-4 transition-transform group-hover:scale-110">
+-              <Upload className="h-8 w-8 text-blue-600" />
+-           </div>
+-           <p className="mt-4 text-base font-medium text-gray-900">暺?????CSV 瑼??單迨</p>
+-           <p className="mt-1 text-sm text-gray-500">?舀?舀???.csv</p>
+-           
+-           <input 
+-             type="file" 
+-             className="hidden" 
+-             accept=".csv"
+-             onChange={handleFileUpload}
+-             disabled={uploading}
+-             ref={fileInputRef}
+-           />
+-        </label>
+-
+-        {status.message && (
+-          <div className="mt-6 flex flex-col items-center justify-center gap-2">
+-            {uploading && <Loader2 className="h-6 w-6 animate-spin text-blue-500" />}
+-            <p className={`text-base font-medium ${
+-              status.type === 'error' ? 'text-red-500' :
+-              status.type === 'success' ? 'text-green-500' :
+-              'text-blue-500'
+-            }`}>
+-              {status.message}
+-            </p>
+-          </div>
+-        )}
++
++      <div className="p-8 pb-12">
++        <AnimatePresence mode="wait">
++          {adminTab === 'attendance' && (
++            <motion.div key="attendance" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center">
++              <p className="mb-6 text-sm text-gray-500 font-medium">?湔銝??啁? CSV 瑼?嚗頂蝯勗????刻???蝝??隞交??唳?獢銝颯?/p>
++              <label className={`group relative flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-gray-300 bg-white hover:bg-blue-50/30 hover:border-[#0071E3] transition-all px-6 py-16 ${uploading ? 'pointer-events-none opacity-50' : ''}`}>
++                 <div className="rounded-2xl bg-blue-50 p-4 transition-transform group-hover:scale-110 mb-4">
++                    <Upload className="h-8 w-8 text-blue-600" />
++                 </div>
++                 <p className="text-lg font-bold text-gray-900 mb-1">暺?????CSV 瑼??單迨</p>
++                 <p className="text-sm font-medium text-gray-500">?舀?舀???.csv</p>
++                 <input type="file" className="hidden" accept=".csv" onChange={handleFileUpload} disabled={uploading} ref={fileInputRef} />
++              </label>
++              {status.message && (
++                <div className="mt-6 flex flex-col items-center justify-center gap-3">
++                  {uploading && <Loader2 className="h-8 w-8 animate-spin text-blue-500" /> }
++                  <p className={`text-sm font-bold px-4 py-2 rounded-full ${status.type === 'error' ? 'bg-red-50 text-red-500' : status.type === 'success' ? 'bg-green-50 text-green-500' : 'bg-blue-50 text-blue-500'}`}>
++                    {status.message}
++                  </p>
++                </div>
++              )}
++            </motion.div>
++          )}
++
++          {adminTab === 'presentation' && (
++            <motion.div key="presentation" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
++              <p className="mb-6 text-sm text-gray-500 font-medium text-center">靘? SA/SD 閮剛?嚗?港???Excel?DF?XT?NG 蝝?嚗頂蝯勗??芸??斗撖急?銝衣???PPTX??/p>
++              
++              <div className="flex flex-col sm:flex-row gap-6">
++                <div className="flex-1">
++                  <label className="group relative flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-gray-300 bg-white hover:bg-indigo-50/30 hover:border-indigo-500 transition-all px-6 py-12">
++                     <div className="rounded-2xl bg-indigo-50 p-4 transition-transform group-hover:scale-110 mb-4">
++                        <FileText className="h-8 w-8 text-indigo-600" />
++                     </div>
++                     <p className="text-base font-bold text-gray-900 mb-1">銝?祇勗????/p>
++                     <p className="text-xs font-medium text-gray-500 text-center">?舀憭瑼? (Excel, PDF, TXT...)</p>
++                     <input type="file" className="hidden" multiple onChange={handlePresentationUpload} />
++                  </label>
++                  
++                  {presentationFiles.length > 0 && (
++                    <div className="mt-4 flex flex-col gap-2">
++                      <p className="text-sm font-bold text-gray-700">撌脤??{presentationFiles.length} ??獢?</p>
++                      <ul className="text-xs text-gray-500">
++                        {presentationFiles.map((f, i) => (
++                          <li key={i}>??{f.name}</li>
++                        ))}
++                      </ul>
++                      <button 
++                        onClick={generatePresentation}
++                        disabled={generating}
++                        className="mt-2 w-full flex justify-center items-center gap-2 bg-indigo-600 text-white rounded-xl px-4 py-3 font-bold hover:bg-indigo-700 disabled:opacity-50"
++                      >
++                        {generating ? <Loader2 className="h-5 w-5 animate-spin" /> : <Shield className="h-5 w-5" />}
++                        ???箄??蝪∪
++                      </button>
++                    </div>
++                  )}
++                </div>
++
++                <div className="flex-1 bg-gray-50/50 rounded-3xl p-6 border border-gray-100">
++                  <h4 className="font-bold text-gray-900 mb-4">??蝯??祟?詨?</h4>
++                  
++                  {!reportResult ? (
++                    <div className="flex h-32 items-center justify-center text-sm text-gray-400 font-medium">
++                      撠??蝪∪
++                    </div>
++                  ) : (
++                    <div className="flex flex-col gap-4">
++                      <div className="bg-white p-4 rounded-xl border border-gray-200">
++                        <p className="text-xs text-gray-400 font-bold mb-1">蝟餌絞?斗撖急?</p>
++                        <p className="text-lg font-black text-indigo-600">Type {reportResult.strategy_used.primary_style}</p>
++                        <p className="text-sm text-gray-600 mt-1">{reportResult.strategy_used.reason}</p>
++                      </div>
++                      
++                      <div className="bg-white p-4 rounded-xl border border-gray-200">
++                        <p className="text-xs text-gray-400 font-bold mb-2">撱箄降撖拇皜</p>
++                        <ul className="text-sm text-gray-600 flex flex-col gap-1">
++                          {reportResult.strategy_used.review_points.map((pt: string, i: number) => (
++                            <li key={i} className="flex items-center gap-2">
++                              <AlertCircle className="w-4 h-4 text-orange-500" /> {pt}
++                            </li>
++                          ))}
++                        </ul>
++                      </div>
++
++                      <div className="flex gap-2 mt-2">
++                        <a href={reportResult.download_url_pptx} className="flex-1 bg-green-50 text-green-600 font-bold text-sm rounded-lg px-4 py-3 text-center hover:bg-green-100 transition-colors">
++                          銝? PPTX
++                        </a>
++                        <a href={reportResult.download_url_pdf} className="flex-1 bg-red-50 text-red-600 font-bold text-sm rounded-lg px-4 py-3 text-center hover:bg-red-100 transition-colors">
++                          銝? PDF
++                        </a>
++                      </div>
++                    </div>
++                  )}
++                </div>
++              </div>
++            </motion.div>
++          )}
++        </AnimatePresence>
+       </div>
+     </motion.div>
+   );
+ }
+-
+-// Default Avatar helper
+-function UserAvatar({ name }: { name: string }) {
+-  const initial = name.charAt(0).toUpperCase();
+-  return <span className="text-lg font-semibold">{initial}</span>;
+-}
+
+commit e94318e34b74c7c36daf7de57b6c4bc9827d8ed3
+Author: hr-project <jaylue0509@gmail.com>
+Date:   Wed May 13 13:46:26 2026 +0800
+
+    feat: Initialize Employee Course Query app
+    
+    Sets up the foundational structure and dependencies for the Employee Course Query application, including React, Firebase integration, and Tailwind CSS. This commit also configures the build process via Vite and includes an example `.env` file for API keys.
+
+diff --git a/src/App.tsx b/src/App.tsx
+new file mode 100644
+index 0000000..d0dc96d
+--- /dev/null
++++ b/src/App.tsx
+@@ -0,0 +1,555 @@
++import React, { useEffect, useState, useRef } from 'react';
++import { motion, AnimatePresence } from 'motion/react';
++import { Search, LogOut, Upload, BookOpen, Clock, Award, AlertCircle, Loader2 } from 'lucide-react';
++import { signInWithPopup, onAuthStateChanged, User, signOut, setPersistence, browserLocalPersistence } from 'firebase/auth';
++import { collection, query, where, getDocs, writeBatch, doc } from 'firebase/firestore';
++import Papa from 'papaparse';
++
++import { auth, googleProvider, db } from './firebase';
++
++// Constants
++const ADMIN_EMAIL = 'jaylue0509@gmail.com';
++
++enum OperationType {
++  CREATE = 'create',
++  UPDATE = 'update',
++  DELETE = 'delete',
++  LIST = 'list',
++  GET = 'get',
++  WRITE = 'write',
++}
++
++interface FirestoreErrorInfo {
++  error: string;
++  operationType: OperationType;
++  path: string | null;
++  authInfo: {
++    userId?: string | null;
++    email?: string | null;
++    emailVerified?: boolean | null;
++    isAnonymous?: boolean | null;
++    tenantId?: string | null;
++    providerInfo?: {
++      providerId?: string | null;
++      email?: string | null;
++    }[];
++  }
++}
++
++function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
++  const errInfo: FirestoreErrorInfo = {
++    error: error instanceof Error ? error.message : String(error),
++    authInfo: {
++      userId: auth.currentUser?.uid,
++      email: auth.currentUser?.email,
++      emailVerified: auth.currentUser?.emailVerified,
++      isAnonymous: auth.currentUser?.isAnonymous,
++      tenantId: auth.currentUser?.tenantId,
++      providerInfo: auth.currentUser?.providerData?.map(provider => ({
++        providerId: provider.providerId,
++        email: provider.email,
++      })) || []
++    },
++    operationType,
++    path
++  }
++  console.error('Firestore Error: ', JSON.stringify(errInfo));
++  throw new Error(JSON.stringify(errInfo));
++}
++
++// Types
++interface AttendanceRecord {
++  id?: string;
++  email: string;
++  name: string;
++  aiCredit: string;
++  electiveOrRequired: string;
++  date: string;
++  time: string;
++  courseName: string;
++  hours: number;
++  company: string;
++  department: string;
++  title: string;
++  status: string;
++}
++
++export default function App() {
++  const [user, setUser] = useState<User | null>(null);
++  const [loading, setLoading] = useState(true);
++
++  useEffect(() => {
++    setPersistence(auth, browserLocalPersistence);
++    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
++      setUser(currentUser);
++      setLoading(false);
++    });
++    return () => unsubscribe();
++  }, []);
++
++  const handleLogin = async () => {
++    try {
++      await signInWithPopup(auth, googleProvider);
++    } catch (error) {
++      console.error('Login error', error);
++      alert('?餃憭望?嚗?蝔??岫??);
++    }
++  };
++
++  const handleLogout = () => {
++    signOut(auth);
++  };
++
++  if (loading) {
++    return (
++      <div className="flex h-screen items-center justify-center bg-gray-50">
++        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
++      </div>
++    );
++  }
++
++  return (
++    <div className="min-h-screen bg-[#F5F5F7] font-sans text-[#1D1D1F] selection:bg-[#0071E3] selection:text-white">
++      {/* Background blobs for premium feel */}
++      <div className="pointer-events-none fixed inset-0 overflow-hidden">
++        <div className="absolute -left-[10%] -top-[10%] h-[40%] w-[40%] rounded-full bg-blue-100/40 mix-blend-multiply blur-3xl"></div>
++        <div className="absolute -right-[10%] top-[20%] h-[40%] w-[40%] rounded-full bg-purple-100/40 mix-blend-multiply blur-3xl"></div>
++        <div className="absolute bottom-[-10%] left-[20%] h-[40%] w-[40%] rounded-full bg-cyan-100/40 mix-blend-multiply blur-3xl"></div>
++      </div>
++
++      <main className="relative z-10 mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
++        <AnimatePresence mode="wait">
++          {!user ? (
++            <LoginScreen key="login" onLogin={handleLogin} />
++          ) : (
++            <DashboardScreen key="dashboard" user={user} onLogout={handleLogout} />
++          )}
++        </AnimatePresence>
++      </main>
++    </div>
++  );
++}
++
++// --- Login Screen ---
++function LoginScreen({ onLogin }: { onLogin: () => void }) {
++  return (
++    <motion.div
++      initial={{ opacity: 0, y: 20 }}
++      animate={{ opacity: 1, y: 0 }}
++      exit={{ opacity: 0, y: -20 }}
++      transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
++      className="flex min-h-[80vh] flex-col items-center justify-center text-center"
++    >
++      <div className="mb-8 rounded-3xl bg-white/60 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white/40">
++        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-500 text-white shadow-lg">
++          <BookOpen className="h-8 w-8" />
++        </div>
++      </div>
++      <h1 className="mb-4 text-4xl font-semibold tracking-tight sm:text-5xl">
++        摮詨??亥岷蝟餌絞
++      </h1>
++      <p className="mb-10 max-w-md text-lg text-[#86868B]">
++        ?箔???????刻??梁?嚗頂蝯勗歇????雿輻?函??砍 Google 撣唾??餃嚗??菜???撅砍飛蝧???+      </p>
++      <button
++        onClick={onLogin}
++        className="group relative flex items-center justify-center gap-3 overflow-hidden rounded-full bg-[#1D1D1F] px-8 py-4 text-lg font-medium text-white transition-all hover:scale-[1.02] hover:bg-[#2D2D2F] active:scale-95"
++      >
++        <span>Google ?餃?亦?摮詨?</span>
++        <motion.div
++          className="rounded-full bg-white/20 p-1"
++          whileHover={{ x: 3 }}
++        >
++          <Search className="h-5 w-5" />
++        </motion.div>
++      </button>
++    </motion.div>
++  );
++}
++
++// --- Dashboard Screen ---
++function DashboardScreen({ user, onLogout }: { user: User; onLogout: () => void }) {
++  const isAdmin = user.email === ADMIN_EMAIL;
++  const [activeTab, setActiveTab] = useState<'my-courses' | 'admin'>(isAdmin ? 'admin' : 'my-courses');
++
++  return (
++    <motion.div
++      initial={{ opacity: 0 }}
++      animate={{ opacity: 1 }}
++      transition={{ duration: 0.6 }}
++      className="flex flex-col gap-8"
++    >
++      {/* Header */}
++      <header className="flex w-full items-center justify-between rounded-3xl bg-white/70 px-6 py-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white/50">
++        <div className="flex items-center gap-4">
++          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-blue-600">
++            <UserAvatar name={user.displayName || '?'} />
++          </div>
++          <div>
++            <h2 className="text-xl font-semibold tracking-tight">{user.displayName}</h2>
++            <p className="text-sm text-[#86868B]">{user.email}</p>
++          </div>
++        </div>
++        
++        <div className="flex items-center gap-4">
++          {isAdmin && (
++            <div className="flex rounded-full bg-gray-100/80 p-1 backdrop-blur-md">
++              <button
++                onClick={() => setActiveTab('admin')}
++                className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
++                  activeTab === 'admin'
++                    ? 'bg-white text-black shadow-sm'
++                    : 'text-gray-500 hover:text-black'
++                }`}
++              >
++                蝟餌絞蝞∠?
++              </button>
++              <button
++                onClick={() => setActiveTab('my-courses')}
++                className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
++                  activeTab === 'my-courses'
++                    ? 'bg-white text-black shadow-sm'
++                    : 'text-gray-500 hover:text-black'
++                }`}
++              >
++                ??摮詨?
++              </button>
++            </div>
++          )}
++
++          <button
++            onClick={onLogout}
++            className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200"
++            title="?餃"
++          >
++            <LogOut className="h-5 w-5" />
++          </button>
++        </div>
++      </header>
++
++      {/* Content */}
++      <AnimatePresence mode="wait">
++        {activeTab === 'my-courses' ? (
++          <MyCoursesView key="my-courses" userEmail={user.email || ''} />
++        ) : (
++          <AdminView key="admin" />
++        )}
++      </AnimatePresence>
++    </motion.div>
++  );
++}
++
++// --- My Courses View ---
++function MyCoursesView({ userEmail }: { userEmail: string }) {
++  const [records, setRecords] = useState<AttendanceRecord[]>([]);
++  const [loading, setLoading] = useState(true);
++
++  useEffect(() => {
++    async function fetchAttendances() {
++      try {
++        const q = query(collection(db, 'attendances'), where('email', '==', userEmail.toLowerCase().trim()));
++        const snapshot = await getDocs(q);
++        const data: AttendanceRecord[] = [];
++        snapshot.forEach(doc => {
++          data.push({ id: doc.id, ...doc.data() } as AttendanceRecord);
++        });
++        
++        // Filter "撌脣?? only and sort by date
++        const validRecords = data
++          .filter(r => r.status === '撌脣??)
++          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
++          
++        setRecords(validRecords);
++      } catch (error) {
++        handleFirestoreError(error, OperationType.LIST, 'attendances');
++      } finally {
++        setLoading(false);
++      }
++    }
++    fetchAttendances();
++  }, [userEmail]);
++
++  if (loading) {
++    return (
++      <div className="flex h-64 items-center justify-center">
++        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
++      </div>
++    );
++  }
++
++  const totalCredits = records.reduce((sum, record) => sum + (Number(record.hours) || 0), 0);
++  const totalCourses = records.length;
++
++  return (
++    <motion.div
++      initial={{ opacity: 0, y: 10 }}
++      animate={{ opacity: 1, y: 0 }}
++      exit={{ opacity: 0, y: -10 }}
++      className="flex flex-col gap-6"
++    >
++      {/* Stats row */}
++      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
++        <div className="flex items-center gap-6 rounded-3xl bg-white/70 p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white/50">
++          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-100 text-blue-600">
++            <Award className="h-8 w-8" />
++          </div>
++          <div>
++            <p className="text-sm font-medium text-[#86868B]">蝮賜?飛??/p>
++            <p className="text-4xl font-semibold tracking-tight">{totalCredits}<span className="ml-1 text-xl font-normal text-gray-500">摮詨?</span></p>
++          </div>
++        </div>
++        <div className="flex items-center gap-6 rounded-3xl bg-white/70 p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white/50">
++          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-600">
++            <BookOpen className="h-8 w-8" />
++          </div>
++          <div>
++            <p className="text-sm font-medium text-[#86868B]">撌脣??玨蝔?/p>
++            <p className="text-4xl font-semibold tracking-tight">{totalCourses}<span className="ml-1 text-xl font-normal text-gray-500">??/span></p>
++          </div>
++        </div>
++      </div>
++
++      {/* Course List */}
++      <div className="rounded-3xl bg-white/70 p-2 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white/50">
++        <div className="px-6 py-5">
++          <h3 className="text-xl font-semibold tracking-tight">靽株玨蝝??/h3>
++          <p className="text-sm text-[#86868B] mt-1">甇文?銵典?憿舐內???歇?勗??蝝??/p>
++        </div>
++        
++        {records.length === 0 ? (
++          <div className="flex flex-col items-center justify-center py-16 text-center">
++            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-gray-400">
++              <AlertCircle className="h-8 w-8" />
++            </div>
++            <p className="text-lg font-medium text-gray-900">?桀?撠摮詨?蝝??/p>
++            <p className="mt-1 text-sm text-gray-500">?嗆摰?隤脩??勗敺?蝝???＊蝷箸甇扎?/p>
++          </div>
++        ) : (
++          <ul className="divide-y divide-gray-100/50">
++            {records.map((record) => (
++              <li key={record.id} className="px-6 py-5 transition-colors hover:bg-white/40 sm:rounded-2xl">
++                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
++                  <div className="flex flex-1 flex-col gap-1">
++                    <p className="text-sm font-medium text-blue-600">{record.electiveOrRequired} ??{record.aiCredit === 'V' ? 'AI 摮詨?' : '銝?砍飛??}</p>
++                    <p className="text-lg font-medium tracking-tight text-gray-900">{record.courseName}</p>
++                    <div className="mt-1 flex items-center gap-4 text-sm text-gray-500">
++                      <span className="flex items-center gap-1">
++                        <Clock className="h-4 w-4" />
++                        {record.date} {record.time}
++                      </span>
++                      <span>{record.company} / {record.department}</span>
++                    </div>
++                  </div>
++                  <div className="flex items-baseline gap-1 sm:flex-col sm:items-end sm:justify-center">
++                    <span className="text-2xl font-semibold text-gray-900">+{record.hours}</span>
++                    <span className="text-sm font-medium text-gray-500">摮詨?</span>
++                  </div>
++                </div>
++              </li>
++            ))}
++          </ul>
++        )}
++      </div>
++    </motion.div>
++  );
++}
++
++// --- Admin View ---
++function AdminView() {
++  const [uploading, setUploading] = useState(false);
++  const [status, setStatus] = useState<{ type: 'idle' | 'success' | 'error'; message: string }>({ type: 'idle', message: '' });
++  const fileInputRef = useRef<HTMLInputElement>(null);
++
++  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
++    const file = event.target.files?.[0];
++    if (!file) return;
++
++    setUploading(true);
++    setStatus({ type: 'idle', message: '閫??瑼?銝?..' });
++
++    Papa.parse(file, {
++      header: true,
++      skipEmptyLines: true,
++      complete: async (results) => {
++        try {
++          const data = results.data as any[];
++          
++          if (!data || data.length === 0) {
++            throw new Error('?芣?啗????澆?銝泵');
++          }
++
++          // Format incoming CSV base mapping
++          // Columns: AI摮詨?,??敹耨,?交?,??,隤脩??迂,?,?砍,憪?,?券?,?瑞迂,?勗?瘜?email
++          
++          const formattedRecords: AttendanceRecord[] = [];
++          
++          for(const row of data) {
++            // Because headers might have extra spaces or different casing depending on tools, normalize access
++            const email = (row['email'] || row['Email'] || '').trim().toLowerCase();
++            const name = (row['憪?'] || '').trim();
++            const courseName = (row['隤脩??迂'] || '').trim();
++            const rawHours = row['?'];
++            const hours = parseFloat(rawHours);
++            const attendanceStatus = (row['?勗?瘜?] || '').trim();
++            
++            if(!email || !name || !courseName) {
++              continue; // Skip invalid lines gracefully
++            }
++            
++            formattedRecords.push({
++              email: email,
++              name: name,
++              aiCredit: (row['AI摮詨?'] || '').trim(),
++              electiveOrRequired: (row['??敹耨'] || '').trim(),
++              date: (row['?交?'] || '').trim(),
++              time: (row['??'] || '').trim(),
++              courseName: courseName,
++              hours: isNaN(hours) ? 0 : hours,
++              company: (row['?砍'] || '').trim(),
++              department: (row['?券?'] || '').trim(),
++              title: (row['?瑞迂'] || '').trim(),
++              status: attendanceStatus
++            });
++          }
++
++          if(formattedRecords.length === 0) {
++           throw new Error('?⊥????? (隢炎?交?雿?蝔望?血???email, 憪?, 隤脩??迂)');
++          }
++
++          setStatus({ type: 'idle', message: '?芷??鞈?銝?..' });
++
++          // 1. Delete all existing records
++          // In an enterprise app, we might paginate deletion.
++          // For simplicity in this demo, we fetch all and batch delete 500 at a time.
++          const collectionRef = collection(db, 'attendances');
++          let oldDocs;
++          try {
++            oldDocs = await getDocs(collectionRef);
++          } catch (e) {
++             handleFirestoreError(e, OperationType.LIST, 'attendances');
++             return;
++          }
++          
++          let deleteBatch = writeBatch(db);
++          let deleteCount = 0;
++          for (const d of oldDocs.docs) {
++            deleteBatch.delete(d.ref);
++            deleteCount++;
++            if(deleteCount === 500) {
++              try {
++                await deleteBatch.commit();
++              } catch (e) {
++                handleFirestoreError(e, OperationType.DELETE, 'attendances');
++              }
++              deleteBatch = writeBatch(db);
++              deleteCount = 0;
++            }
++          }
++          if(deleteCount > 0) {
++            try {
++              await deleteBatch.commit();
++            } catch(e) {
++              handleFirestoreError(e, OperationType.DELETE, 'attendances');
++            }
++          }
++
++          setStatus({ type: 'idle', message: `撖怠 ${formattedRecords.length} 蝑鞈?銝?..` });
++
++          // 2. Insert new records in batches of 500
++          let insertBatch = writeBatch(db);
++          let insertCount = 0;
++          
++          for (const record of formattedRecords) {
++            const newDocRef = doc(collectionRef); // auto-generate ID
++            insertBatch.set(newDocRef, record);
++            insertCount++;
++            
++            if(insertCount === 500) {
++              try {
++               await insertBatch.commit();
++              } catch(e) {
++                handleFirestoreError(e, OperationType.WRITE, 'attendances');
++              }
++               insertBatch = writeBatch(db);
++               insertCount = 0;
++            }
++          }
++          if(insertCount > 0) {
++            try {
++              await insertBatch.commit();
++            } catch(e) {
++              handleFirestoreError(e, OperationType.WRITE, 'attendances');
++            }
++          }
++
++          setStatus({ type: 'success', message: `???臬銝西???${formattedRecords.length} 蝑???` });
++        } catch (error: any) {
++          console.error("Upload error", error);
++          setStatus({ type: 'error', message: error.message || '?臬憭望?' });
++        } finally {
++          setUploading(false);
++          if (fileInputRef.current) {
++            fileInputRef.current.value = '';
++          }
++        }
++      },
++      error: (error) => {
++        setUploading(false);
++        setStatus({ type: 'error', message: `閫?? CSV 憭望?: ${error.message}` });
++      }
++    });
++  };
++
++  return (
++    <motion.div
++      initial={{ opacity: 0, scale: 0.98 }}
++      animate={{ opacity: 1, scale: 1 }}
++      exit={{ opacity: 0, scale: 0.98 }}
++      className="overflow-hidden rounded-3xl bg-white/70 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white/50"
++    >
++      <div className="border-b border-gray-100/50 bg-white/30 px-8 py-6">
++        <h3 className="text-xl font-semibold tracking-tight text-gray-900">蝟餌絞蝞∠?</h3>
++        <p className="mt-1 text-sm text-gray-500">?湔銝??啁? CSV 瑼?嚗頂蝯勗????刻???蝝??隞交??唳?獢銝颯?/p>
++      </div>
++      <div className="p-8 pb-12 text-center">
++        <label
++           className={`group relative flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-gray-300 bg-white hover:bg-gray-50/50 hover:border-[#0071E3] transition-all px-6 py-12 ${uploading ? 'pointer-events-none opacity-50' : ''}`}
++        >
++           <div className="rounded-full bg-blue-50 p-4 transition-transform group-hover:scale-110">
++              <Upload className="h-8 w-8 text-blue-600" />
++           </div>
++           <p className="mt-4 text-base font-medium text-gray-900">暺?????CSV 瑼??單迨</p>
++           <p className="mt-1 text-sm text-gray-500">?舀?舀???.csv</p>
++           
++           <input 
++             type="file" 
++             className="hidden" 
++             accept=".csv"
++             onChange={handleFileUpload}
++             disabled={uploading}
++             ref={fileInputRef}
++           />
++        </label>
++
++        {status.message && (
++          <div className="mt-6 flex flex-col items-center justify-center gap-2">
++            {uploading && <Loader2 className="h-6 w-6 animate-spin text-blue-500" />}
++            <p className={`text-base font-medium ${
++              status.type === 'error' ? 'text-red-500' :
++              status.type === 'success' ? 'text-green-500' :
++              'text-blue-500'
++            }`}>
++              {status.message}
++            </p>
++          </div>
++        )}
++      </div>
++    </motion.div>
++  );
++}
++
++// Default Avatar helper
++function UserAvatar({ name }: { name: string }) {
++  const initial = name.charAt(0).toUpperCase();
++  return <span className="text-lg font-semibold">{initial}</span>;
++}
