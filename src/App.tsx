@@ -373,7 +373,7 @@ function DashboardScreen({ user, onLogout }: { user: AppUser; onLogout: () => vo
 
 
 // --- Dashboard Stats Component ---
-function DashboardStats({ records }: { records: AttendanceRecord[] }) {
+function DashboardStats({ records, allCompanyRecords }: { records: AttendanceRecord[], allCompanyRecords: AttendanceRecord[] }) {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 100;
 
@@ -411,25 +411,36 @@ function DashboardStats({ records }: { records: AttendanceRecord[] }) {
     const aiRequiredCount = aiRecords.filter(r => r.electiveOrRequired === '必修').length;
     const aiElectiveCount = aiRecords.filter(r => r.electiveOrRequired === '選修').length;
 
+    // --- Recommendations (Courses not taken) ---
+    const attendedCourseNames = new Set(attendedRecords.map(r => r.courseName.trim()));
+    const recommendedMap = new Map<string, AttendanceRecord>();
+    
+    allCompanyRecords.forEach(r => {
+      const cName = r.courseName.trim();
+      if (cName && !attendedCourseNames.has(cName) && !recommendedMap.has(cName)) {
+        recommendedMap.set(cName, { ...r, id: `rec-${cName}`, status: '未報到' });
+      }
+    });
+    const unattendedRecords = Array.from(recommendedMap.values());
+
     return {
       totalCredits, totalCompleted, totalEnrolled,
       totalRequiredCount, totalElectiveCount,
       requiredTarget, electiveTarget, requiredMissing, electiveMissing,
-      aiRecords, nonAiRecords,
+      aiRecords, nonAiRecords, unattendedRecords,
       totalAICredits, totalAICourses, aiRequiredCount, aiElectiveCount
     };
-  }, [records]);
+  }, [records, allCompanyRecords]);
 
   const { 
     totalCredits, totalCompleted, totalEnrolled, 
     totalRequiredCount, totalElectiveCount, 
     requiredTarget, electiveTarget, requiredMissing, electiveMissing, 
-    aiRecords, nonAiRecords, 
+    aiRecords, nonAiRecords, unattendedRecords,
     totalAICredits, totalAICourses, aiRequiredCount, aiElectiveCount 
   } = stats;
 
   // Pagination logic for the three lists
-  const unattendedRecords = records.filter(r => r.status !== '已報到');
   const paginatedAiRecords = aiRecords.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const paginatedNonAiRecords = nonAiRecords.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const paginatedUnattendedRecords = unattendedRecords.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -711,25 +722,39 @@ function DashboardStats({ records }: { records: AttendanceRecord[] }) {
 // --- My Courses View ---
 function MyCoursesView({ userEmail }: { userEmail: string; key?: string }) {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
+  const [allCompanyRecords, setAllCompanyRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchAttendances() {
       try {
-        const q = query(
+        // Fetch specific user's records
+        const qUser = query(
           collection(db, 'attendances'), 
           where('email', '==', userEmail.toLowerCase().trim())
         );
-        const snapshot = await getDocs(q);
-        const data: AttendanceRecord[] = [];
-        snapshot.forEach(doc => {
-          data.push({ id: doc.id, ...doc.data() } as AttendanceRecord);
+        
+        // Fetch all company records to build recommendation catalog
+        const qAll = query(collection(db, 'attendances'));
+
+        const [snapUser, snapAll] = await Promise.all([getDocs(qUser), getDocs(qAll)]);
+        
+        const userData: AttendanceRecord[] = [];
+        snapUser.forEach(doc => {
+          userData.push({ id: doc.id, ...doc.data() } as AttendanceRecord);
+        });
+        
+        const allData: AttendanceRecord[] = [];
+        snapAll.forEach(doc => {
+          allData.push({ id: doc.id, ...doc.data() } as AttendanceRecord);
         });
         
         // Use fast string comparison for dates to avoid missing composite index error
-        data.sort((a, b) => b.date.localeCompare(a.date));
+        userData.sort((a, b) => b.date.localeCompare(a.date));
+        allData.sort((a, b) => b.date.localeCompare(a.date));
         
-        setRecords(data);
+        setRecords(userData);
+        setAllCompanyRecords(allData);
       } catch (error) {
         handleFirestoreError(error, OperationType.LIST, 'attendances');
       } finally {
@@ -747,7 +772,7 @@ function MyCoursesView({ userEmail }: { userEmail: string; key?: string }) {
     );
   }
 
-  return <DashboardStats records={records} />;
+  return <DashboardStats records={records} allCompanyRecords={allCompanyRecords} />;
 }
 
 // --- Admin View ---
@@ -965,7 +990,7 @@ function AdminView() {
                     <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
                   </div>
                 ) : (
-                  <DashboardStats records={filteredRecords} />
+                  <DashboardStats records={filteredRecords} allCompanyRecords={allRecords} />
                 )}
               </motion.div>
             )}
