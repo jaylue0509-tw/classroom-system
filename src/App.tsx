@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, LogOut, Upload, BookOpen, Clock, Award, AlertCircle, Loader2, Shield, ChevronLeft, FileText } from 'lucide-react';
+import { Search, LogOut, Upload, BookOpen, Clock, Award, AlertCircle, Loader2, Shield, ChevronLeft, FileText, X } from 'lucide-react';
 import { signInWithPopup, signInWithEmailAndPassword, onAuthStateChanged, User, signOut, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { collection, query, where, getDocs, writeBatch, doc } from 'firebase/firestore';
 import Papa from 'papaparse';
@@ -374,12 +374,18 @@ function DashboardScreen({ user, onLogout }: { user: AppUser; onLogout: () => vo
 
 // --- Dashboard Stats Component ---
 function DashboardStats({ records }: { records: AttendanceRecord[] }) {
-  // --- Total Calculations (For the top 4 cards) ---
-  const totalCredits = records.reduce((sum, record) => sum + (Number(record.hours) || 0), 0);
-  const totalCourses = records.length;
+  const [showCourseModal, setShowCourseModal] = useState(false);
+
+  // Filter attended vs all for calculations
+  const attendedRecords = records.filter(r => r.status === '已報到');
   
-  const totalRequiredCount = records.filter(r => r.electiveOrRequired === '必修').length;
-  const totalElectiveCount = records.filter(r => r.electiveOrRequired === '選修').length;
+  // --- Total Calculations (For the top 4 cards) ---
+  const totalCredits = attendedRecords.reduce((sum, record) => sum + (Number(record.hours) || 0), 0);
+  const totalCompleted = attendedRecords.length;
+  const totalEnrolled = records.length;
+  
+  const totalRequiredCount = attendedRecords.filter(r => r.electiveOrRequired === '必修').length;
+  const totalElectiveCount = attendedRecords.filter(r => r.electiveOrRequired === '選修').length;
   
   const requiredTarget = 2;
   const electiveTarget = 4;
@@ -389,7 +395,8 @@ function DashboardStats({ records }: { records: AttendanceRecord[] }) {
 
   // --- AI Specific Calculations (For the AI Courses section) ---
   const isAICourse = (r: AttendanceRecord) => r.aiCredit === 'AI 學分課程' || r.aiCredit === 'V' || r.courseName.includes('AI');
-  const aiRecords = records.filter(isAICourse);
+  const aiRecords = attendedRecords.filter(isAICourse);
+  const nonAiRecords = attendedRecords.filter(r => !isAICourse(r));
 
   const totalAICredits = aiRecords.reduce((sum, record) => sum + (Number(record.hours) || 0), 0);
   const totalAICourses = aiRecords.length;
@@ -397,135 +404,250 @@ function DashboardStats({ records }: { records: AttendanceRecord[] }) {
   const aiElectiveCount = aiRecords.filter(r => r.electiveOrRequired === '選修').length;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      className="flex flex-col gap-6"
-    >
-      {/* 4 Cards Stats row */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        
-        {/* Card 1 */}
-        <div className="flex flex-col justify-center gap-2 rounded-[2rem] bg-white/80 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
-          <div className="flex justify-between items-start">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-500">
-              <Award className="h-7 w-7" />
-            </div>
-            <div className="text-right flex flex-col items-end">
-              <p className="text-xs font-bold text-gray-400 mb-1">累計修課時數</p>
-              <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-black tracking-tight text-gray-900">{totalCredits}</span>
-                <span className="text-xs font-bold text-gray-400">時數</span>
+    <>
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -10 }}
+        className="flex flex-col gap-6"
+      >
+        {/* 4 Cards Stats row */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          
+          {/* Card 1 */}
+          <div className="flex flex-col justify-center gap-2 rounded-[2rem] bg-white/80 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
+            <div className="flex justify-between items-start">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-500">
+                <Award className="h-7 w-7" />
+              </div>
+              <div className="text-right flex flex-col items-end">
+                <p className="text-xs font-bold text-gray-400 mb-1">累計修課時數</p>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-4xl font-black tracking-tight text-gray-900">{totalCredits}</span>
+                  <span className="text-xs font-bold text-gray-400">時數</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Card 2 */}
-        <div className="flex flex-col justify-center gap-2 rounded-[2rem] bg-white/80 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
-          <div className="flex justify-between items-start">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-500">
-              <BookOpen className="h-7 w-7" />
-            </div>
-            <div className="text-right flex flex-col items-end">
-              <p className="text-xs font-bold text-gray-400 mb-1">完成課程總數</p>
-              <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-black tracking-tight text-gray-900">{totalCourses}</span>
-                <span className="text-xs font-bold text-gray-400">課程</span>
+          {/* Card 2 */}
+          <div 
+            onClick={() => setShowCourseModal(true)}
+            className="flex flex-col justify-center gap-2 rounded-[2rem] bg-white/80 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white cursor-pointer hover:bg-white transition-colors group"
+          >
+            <div className="flex justify-between items-start">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-500 group-hover:scale-110 transition-transform">
+                <BookOpen className="h-7 w-7" />
+              </div>
+              <div className="text-right flex flex-col items-end">
+                <p className="text-xs font-bold text-gray-400 mb-1">總共課程數量</p>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-4xl font-black tracking-tight text-gray-900">{totalEnrolled}</span>
+                  <span className="text-xs font-bold text-gray-400">堂</span>
+                </div>
               </div>
             </div>
           </div>
+
+          {/* Card 3: 必修 */}
+          <div className="flex flex-col justify-center rounded-[2rem] bg-white/80 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
+            <div className="flex justify-between items-center mb-4">
+              <span className="px-3 py-1 bg-red-50 text-red-500 text-xs font-bold rounded-full">必修</span>
+              <span className="text-gray-400 text-sm font-bold">{totalRequiredCount}/{requiredTarget}</span>
+            </div>
+            <div className="w-full bg-gray-100 rounded-full h-2 mb-3 overflow-hidden">
+              <div className="bg-red-400 h-2 rounded-full" style={{ width: `${Math.min(100, (totalRequiredCount/requiredTarget)*100)}%` }}></div>
+            </div>
+            <p className="text-xs text-gray-400 font-bold">
+              {requiredMissing > 0 ? `差 ${requiredMissing} 堂達標` : '✅ 必修已達標'}
+            </p>
+          </div>
+
+          {/* Card 4: 選修 */}
+          <div className="flex flex-col justify-center rounded-[2rem] bg-white/80 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
+            <div className="flex justify-between items-center mb-4">
+              <span className="px-3 py-1 bg-purple-50 text-purple-500 text-xs font-bold rounded-full">選修</span>
+              <span className="text-gray-400 text-sm font-bold">{totalElectiveCount}/{electiveTarget}</span>
+            </div>
+            <div className="w-full bg-gray-100 rounded-full h-2 mb-3 overflow-hidden">
+              <div className="bg-purple-400 h-2 rounded-full" style={{ width: `${Math.min(100, (totalElectiveCount/electiveTarget)*100)}%` }}></div>
+            </div>
+            <p className="text-xs text-gray-400 font-bold">
+              {requiredMissing > 0 ? `差 ${electiveMissing} 堂達標` : '✅ 選修已達標'}
+            </p>
+          </div>
+
         </div>
 
-        {/* Card 3: 必修 */}
-        <div className="flex flex-col justify-center rounded-[2rem] bg-white/80 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
-          <div className="flex justify-between items-center mb-4">
-            <span className="px-3 py-1 bg-red-50 text-red-500 text-xs font-bold rounded-full">必修</span>
-            <span className="text-gray-400 text-sm font-bold">{totalRequiredCount}/{requiredTarget}</span>
-          </div>
-          <div className="w-full bg-gray-100 rounded-full h-2 mb-3 overflow-hidden">
-            <div className="bg-red-400 h-2 rounded-full" style={{ width: `${Math.min(100, (totalRequiredCount/requiredTarget)*100)}%` }}></div>
-          </div>
-          <p className="text-xs text-gray-400 font-bold">
-            {requiredMissing > 0 ? `差 ${requiredMissing} 堂達標` : '✅ 必修已達標'}
-          </p>
-        </div>
-
-        {/* Card 4: 選修 */}
-        <div className="flex flex-col justify-center rounded-[2rem] bg-white/80 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
-          <div className="flex justify-between items-center mb-4">
-            <span className="px-3 py-1 bg-purple-50 text-purple-500 text-xs font-bold rounded-full">選修</span>
-            <span className="text-gray-400 text-sm font-bold">{totalElectiveCount}/{electiveTarget}</span>
-          </div>
-          <div className="w-full bg-gray-100 rounded-full h-2 mb-3 overflow-hidden">
-            <div className="bg-purple-400 h-2 rounded-full" style={{ width: `${Math.min(100, (totalElectiveCount/electiveTarget)*100)}%` }}></div>
-          </div>
-          <p className="text-xs text-gray-400 font-bold">
-            {electiveMissing > 0 ? `差 ${electiveMissing} 堂達標` : '✅ 選修已達標'}
-          </p>
-        </div>
-
-      </div>
-
-      {/* Course List */}
-      <div className="rounded-[2.5rem] bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
-        <div className="px-8 py-8 pb-4">
-          <div className="flex justify-between items-center mb-5">
-            <h3 className="text-xl font-black tracking-tight text-gray-900">AI學分課程</h3>
-            <span className="text-xs font-bold text-orange-500 bg-orange-50 px-3 py-1.5 rounded-full flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-orange-400"></span> 採計學分 • {totalAICourses} 筆
-            </span>
+        {/* AI Course List */}
+        <div className="rounded-[2.5rem] bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
+          <div className="px-8 py-8 pb-4">
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="text-xl font-black tracking-tight text-gray-900">AI 學分課程</h3>
+              <span className="text-xs font-bold text-orange-500 bg-orange-50 px-3 py-1.5 rounded-full flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-orange-400"></span> 採計學分 • {totalAICourses} 筆
+              </span>
+            </div>
+            
+            <div className="flex gap-3 text-xs font-bold mb-2">
+              <span className="flex items-center gap-1.5 bg-gray-50 text-gray-500 px-3 py-1.5 rounded-full border border-gray-100">
+                <Clock className="w-3.5 h-3.5" /> {totalAICredits} 小時數
+              </span>
+              <span className="text-red-500 bg-red-50 px-3 py-1.5 rounded-full">必修 {aiRequiredCount} 堂</span>
+              <span className="text-purple-500 bg-purple-50 px-3 py-1.5 rounded-full">選修 {aiElectiveCount} 堂</span>
+            </div>
           </div>
           
-          <div className="flex gap-3 text-xs font-bold mb-2">
-            <span className="flex items-center gap-1.5 bg-gray-50 text-gray-500 px-3 py-1.5 rounded-full border border-gray-100">
-              <Clock className="w-3.5 h-3.5" /> {totalAICredits} 小時數
-            </span>
-            <span className="text-red-500 bg-red-50 px-3 py-1.5 rounded-full">必修 {aiRequiredCount} 堂</span>
-            <span className="text-purple-500 bg-purple-50 px-3 py-1.5 rounded-full">選修 {aiElectiveCount} 堂</span>
-          </div>
-        </div>
-        
-        {aiRecords.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-gray-400">
-              <AlertCircle className="h-8 w-8" />
+          {aiRecords.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-gray-400">
+                <AlertCircle className="h-8 w-8" />
+              </div>
+              <p className="text-lg font-bold text-gray-900">目前尚無學分紀錄</p>
+              <p className="mt-1 text-sm font-medium text-gray-500">當您完成課程報到後，紀錄將會顯示於此。</p>
             </div>
-            <p className="text-lg font-bold text-gray-900">目前尚無學分紀錄</p>
-            <p className="mt-1 text-sm font-medium text-gray-500">當您完成課程報到後，紀錄將會顯示於此。</p>
-          </div>
-        ) : (
-          <ul className="divide-y divide-gray-100/60 px-4 pb-4">
-            {aiRecords.map((record) => (
-              <li key={record.id} className="p-4 transition-colors hover:bg-white/60 rounded-2xl group flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex gap-4 items-start">
-                  <div className="hidden sm:flex mt-1 w-12 h-12 rounded-xl bg-orange-50 text-orange-500 items-center justify-center font-black text-sm text-center leading-tight tracking-wider">
-                    人工<br/>智慧
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm ${record.electiveOrRequired === '必修' ? 'text-red-500 bg-red-50' : 'text-purple-500 bg-purple-50'}`}>
-                        {record.electiveOrRequired}
-                      </span>
-                      <span className="text-xs text-gray-400 font-bold">{record.date}</span>
+          ) : (
+            <ul className="divide-y divide-gray-100/60 px-4 pb-4">
+              {aiRecords.map((record) => (
+                <li key={record.id} className="p-4 transition-colors hover:bg-white/60 rounded-2xl group flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex gap-4 items-start">
+                    <div className="hidden sm:flex mt-1 w-12 h-12 rounded-xl bg-orange-50 text-orange-500 items-center justify-center font-black text-sm text-center leading-tight tracking-wider">
+                      人工<br/>智慧
                     </div>
-                    <p className="text-base font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
-                      {record.courseName} <span className="text-sm font-medium text-gray-500 ml-2">({record.name})</span>
-                    </p>
-                    <p className="text-xs text-gray-400 font-bold">{record.company}·{record.department}</p>
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm ${record.electiveOrRequired === '必修' ? 'text-red-500 bg-red-50' : 'text-purple-500 bg-purple-50'}`}>
+                          {record.electiveOrRequired}
+                        </span>
+                        <span className="text-xs text-gray-400 font-bold">{record.date}</span>
+                      </div>
+                      <p className="text-base font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+                        {record.courseName} <span className="text-sm font-medium text-gray-500 ml-2">({record.name})</span>
+                      </p>
+                      <p className="text-xs text-gray-400 font-bold">{record.company}·{record.department}</p>
+                    </div>
                   </div>
+                  <div className="flex flex-col items-end justify-center pr-2">
+                    <span className="text-xl font-black text-gray-900">+{record.hours}</span>
+                    <span className="text-[10px] font-bold text-gray-400">時數</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Non-AI Course List */}
+        <div className="rounded-[2.5rem] bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
+          <div className="px-8 py-8 pb-4">
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="text-xl font-black tracking-tight text-gray-900">一般課程</h3>
+              <span className="text-xs font-bold text-blue-500 bg-blue-50 px-3 py-1.5 rounded-full flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span> 採計學分 • {nonAiRecords.length} 筆
+              </span>
+            </div>
+          </div>
+          
+          {nonAiRecords.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-gray-400">
+                <AlertCircle className="h-8 w-8" />
+              </div>
+              <p className="text-lg font-bold text-gray-900">目前尚無一般課程紀錄</p>
+            </div>
+          ) : (
+            <ul className="divide-y divide-gray-100/60 px-4 pb-4">
+              {nonAiRecords.map((record) => (
+                <li key={record.id} className="p-4 transition-colors hover:bg-white/60 rounded-2xl group flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex gap-4 items-start">
+                    <div className="hidden sm:flex mt-1 w-12 h-12 rounded-xl bg-blue-50 text-blue-500 items-center justify-center font-black text-sm text-center leading-tight tracking-wider">
+                      一般<br/>課程
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm ${record.electiveOrRequired === '必修' ? 'text-red-500 bg-red-50' : 'text-purple-500 bg-purple-50'}`}>
+                          {record.electiveOrRequired}
+                        </span>
+                        <span className="text-xs text-gray-400 font-bold">{record.date}</span>
+                      </div>
+                      <p className="text-base font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+                        {record.courseName} <span className="text-sm font-medium text-gray-500 ml-2">({record.name})</span>
+                      </p>
+                      <p className="text-xs text-gray-400 font-bold">{record.company}·{record.department}</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end justify-center pr-2">
+                    <span className="text-xl font-black text-gray-900">+{record.hours}</span>
+                    <span className="text-[10px] font-bold text-gray-400">時數</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </motion.div>
+
+      {/* Course Enrolled Modal */}
+      <AnimatePresence>
+        {showCourseModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden"
+            >
+              <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-white">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">總共課程清單</h3>
+                  <p className="text-sm text-gray-500 font-medium mt-1">共 {totalEnrolled} 筆報名紀錄，已完成 {totalCompleted} 筆</p>
                 </div>
-                <div className="flex flex-col items-end justify-center pr-2">
-                  <span className="text-xl font-black text-gray-900">+{record.hours}</span>
-                  <span className="text-[10px] font-bold text-gray-400">時數</span>
-                </div>
-              </li>
-            ))}
-          </ul>
+                <button 
+                  onClick={() => setShowCourseModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <X className="w-6 h-6 text-gray-500" />
+                </button>
+              </div>
+              <div className="overflow-y-auto flex-1 p-6 bg-gray-50/50">
+                <ul className="flex flex-col gap-3">
+                  {records.map((record, i) => {
+                    const isAttended = record.status === '已報到';
+                    return (
+                      <li key={`${record.id}-${i}`} className="bg-white border border-gray-100 rounded-2xl p-5 flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:border-blue-200 transition-colors shadow-sm">
+                        <div className="flex flex-col gap-1">
+                          <p className="text-base font-bold text-gray-900">{record.courseName}</p>
+                          <div className="flex items-center gap-2 text-xs font-bold text-gray-500">
+                            <span>{record.name} ({record.company}·{record.department})</span>
+                            <span className="w-1 h-1 rounded-full bg-gray-300"></span>
+                            <span>{record.date}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold border ${isAttended ? 'bg-green-50 text-green-600 border-green-200' : 'bg-red-50 text-red-500 border-red-200'}`}>
+                            {isAttended ? '✅ 已上過 (已報到)' : '❌ 未上過 (未報到)'}
+                          </span>
+                          {isAttended && (
+                            <span className="text-sm font-black text-gray-900 bg-gray-100 px-3 py-1 rounded-full">
+                              +{record.hours} hr
+                            </span>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
-      </div>
-    </motion.div>
+      </AnimatePresence>
+    </>
   );
 }
 
@@ -545,7 +667,6 @@ function MyCoursesView({ userEmail }: { userEmail: string; key?: string }) {
         });
         
         const validRecords = data
-          .filter(r => r.status === '已報到')
           .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
           
         setRecords(validRecords);
@@ -600,7 +721,6 @@ function AdminView() {
       });
       
       const validRecords = data
-        .filter(r => r.status === '已報到')
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         
       setAllRecords(validRecords);
