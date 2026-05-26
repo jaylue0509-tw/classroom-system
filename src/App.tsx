@@ -374,7 +374,6 @@ function DashboardScreen({ user, onLogout }: { user: AppUser; onLogout: () => vo
 
 // --- Dashboard Stats Component ---
 function DashboardStats({ records }: { records: AttendanceRecord[] }) {
-  const [showCourseModal, setShowCourseModal] = useState(false);
 
   // Memoize all heavy calculations so they don't re-run when modal toggles
   const stats = useMemo(() => {
@@ -450,12 +449,9 @@ function DashboardStats({ records }: { records: AttendanceRecord[] }) {
           </div>
 
           {/* Card 2 */}
-          <div 
-            onClick={() => setShowCourseModal(true)}
-            className="flex flex-col justify-center gap-2 rounded-[2rem] bg-white/80 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white cursor-pointer hover:bg-white transition-colors group"
-          >
+          <div className="flex flex-col justify-center gap-2 rounded-[2rem] bg-white/80 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
             <div className="flex justify-between items-start">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-500 group-hover:scale-110 transition-transform">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-500">
                 <BookOpen className="h-7 w-7" />
               </div>
               <div className="text-right flex flex-col items-end">
@@ -608,68 +604,68 @@ function DashboardStats({ records }: { records: AttendanceRecord[] }) {
             </ul>
           )}
         </div>
-      </motion.div>
 
-      {/* Course Enrolled Modal */}
-      <AnimatePresence>
-        {showCourseModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm"
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-3xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden"
-            >
-              <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-white">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900">總共課程清單</h3>
-                  <p className="text-sm text-gray-500 font-medium mt-1">共 {totalEnrolled} 筆報名紀錄，已完成 {totalCompleted} 筆</p>
-                </div>
-                <button 
-                  onClick={() => setShowCourseModal(false)}
-                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                >
-                  <X className="w-6 h-6 text-gray-500" />
-                </button>
+        {/* All Courses List (Including Unattended) */}
+        <div className="rounded-[2.5rem] bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
+          <div className="px-8 py-8 pb-4">
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="text-xl font-black tracking-tight text-gray-900">所有課程紀錄 <span className="text-sm font-bold text-gray-500">(含未報到)</span></h3>
+              <span className="text-xs font-bold text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span> 總共 • {records.length} 筆
+              </span>
+            </div>
+          </div>
+          
+          {records.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-gray-400">
+                <AlertCircle className="h-8 w-8" />
               </div>
-              <div className="overflow-y-auto flex-1 p-6 bg-gray-50/50">
-                <ul className="flex flex-col gap-3">
-                  {records.map((record, i) => {
-                    const isAttended = record.status === '已報到';
-                    return (
-                      <li key={`${record.id}-${i}`} className="bg-white border border-gray-100 rounded-2xl p-5 flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:border-blue-200 transition-colors shadow-sm">
-                        <div className="flex flex-col gap-1">
-                          <p className="text-base font-bold text-gray-900">{record.courseName}</p>
-                          <div className="flex items-center gap-2 text-xs font-bold text-gray-500">
-                            <span>{record.name} ({record.company}·{record.department})</span>
-                            <span className="w-1 h-1 rounded-full bg-gray-300"></span>
-                            <span>{record.date}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className={`px-3 py-1 rounded-full text-xs font-bold border ${isAttended ? 'bg-green-50 text-green-600 border-green-200' : 'bg-red-50 text-red-500 border-red-200'}`}>
-                            {isAttended ? '✅ 已上過 (已報到)' : '❌ 未上過 (未報到)'}
-                          </span>
-                          {isAttended && (
-                            <span className="text-sm font-black text-gray-900 bg-gray-100 px-3 py-1 rounded-full">
-                              +{record.hours} hr
+              <p className="text-lg font-bold text-gray-900">目前尚無任何紀錄</p>
+            </div>
+          ) : (
+            <ul className="divide-y divide-gray-100/60 px-4 pb-4">
+              {records.map((record, i) => {
+                const isAttended = record.status === '已報到';
+                return (
+                  <li key={`${record.id}-${i}`} className="p-4 transition-colors hover:bg-white/60 rounded-2xl group flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex gap-4 items-start">
+                      <div className="hidden sm:flex mt-1 w-12 h-12 rounded-xl bg-gray-50 text-gray-500 items-center justify-center font-black text-sm text-center leading-tight tracking-wider">
+                        所有<br/>紀錄
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center gap-2">
+                          {record.electiveOrRequired && record.electiveOrRequired !== 'X' && (
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm ${record.electiveOrRequired === '必修' ? 'text-red-500 bg-red-50' : 'text-purple-500 bg-purple-50'}`}>
+                              {record.electiveOrRequired}
                             </span>
                           )}
+                          <span className="text-xs text-gray-400 font-bold">{record.date}</span>
                         </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                        <p className="text-base font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+                          {record.courseName} <span className="text-sm font-medium text-gray-500 ml-2">({record.name})</span>
+                        </p>
+                        <p className="text-xs text-gray-400 font-bold">{record.company}·{record.department}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 pr-2">
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold border ${isAttended ? 'bg-green-50 text-green-600 border-green-200' : 'bg-red-50 text-red-500 border-red-200'}`}>
+                        {isAttended ? '✅ 已報到' : '❌ 未報到'}
+                      </span>
+                      {isAttended && (
+                        <div className="flex flex-col items-end justify-center min-w-[3rem]">
+                          <span className="text-xl font-black text-gray-900">+{record.hours}</span>
+                          <span className="text-[10px] font-bold text-gray-400">時數</span>
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </motion.div>
     </>
   );
 }
