@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useMemo, useDeferredValue } from 'r
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, LogOut, Upload, BookOpen, Clock, Award, AlertCircle, Loader2, Shield, ChevronLeft, FileText, X } from 'lucide-react';
 import { signInWithPopup, signInWithEmailAndPassword, onAuthStateChanged, User, signOut, setPersistence, browserLocalPersistence } from 'firebase/auth';
-import { collection, query, where, getDocs, writeBatch, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, writeBatch, doc, orderBy } from 'firebase/firestore';
 import Papa from 'papaparse';
 
 import { auth, googleProvider, db } from './firebase';
@@ -682,17 +682,18 @@ function MyCoursesView({ userEmail }: { userEmail: string; key?: string }) {
   useEffect(() => {
     async function fetchAttendances() {
       try {
-        const q = query(collection(db, 'attendances'), where('email', '==', userEmail.toLowerCase().trim()));
+        const q = query(
+          collection(db, 'attendances'), 
+          where('email', '==', userEmail.toLowerCase().trim()),
+          orderBy('date', 'desc')
+        );
         const snapshot = await getDocs(q);
         const data: AttendanceRecord[] = [];
         snapshot.forEach(doc => {
           data.push({ id: doc.id, ...doc.data() } as AttendanceRecord);
         });
         
-        const validRecords = data
-          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-          
-        setRecords(validRecords);
+        setRecords(data);
       } catch (error) {
         handleFirestoreError(error, OperationType.LIST, 'attendances');
       } finally {
@@ -728,25 +729,22 @@ function AdminView() {
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    if (adminTab === 'query') {
+    if (adminTab === 'query' && allRecords.length === 0) {
       fetchAllFilesInCompany();
     }
-  }, [adminTab]);
+  }, [adminTab, allRecords.length]);
 
   const fetchAllFilesInCompany = async () => {
     setLoadingQuery(true);
     try {
-      const q = query(collection(db, 'attendances'));
+      const q = query(collection(db, 'attendances'), orderBy('date', 'desc'));
       const snapshot = await getDocs(q);
       const data: AttendanceRecord[] = [];
       snapshot.forEach(doc => {
         data.push({ id: doc.id, ...doc.data() } as AttendanceRecord);
       });
       
-      const validRecords = data
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        
-      setAllRecords(validRecords);
+      setAllRecords(data);
     } catch (error) {
       handleFirestoreError(error, OperationType.LIST, 'attendances');
     } finally {
@@ -836,7 +834,10 @@ function AdminView() {
           setStatus({ type: 'success', message: `成功匯入並覆蓋 ${formattedRecords.length} 筆資料！` });
           
           if (adminTab === 'query') {
-            fetchAllFilesInCompany();
+            await fetchAllFilesInCompany();
+          } else {
+            // Force refetch next time tab changes
+            setAllRecords([]);
           }
         } catch (error: any) {
           setStatus({ type: 'error', message: error.message || '匯入失敗' });
