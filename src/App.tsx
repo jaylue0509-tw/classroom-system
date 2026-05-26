@@ -638,7 +638,7 @@ function DashboardStats({ records, allCompanyRecords }: { records: AttendanceRec
         <div className="rounded-[2.5rem] bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
           <div className="px-8 py-8 pb-4">
             <div className="flex justify-between items-center mb-5">
-              <h3 className="text-xl font-black tracking-tight text-gray-900">曾經開過的課</h3>
+              <h3 className="text-xl font-black tracking-tight text-gray-900">歷史課程</h3>
               <span className="text-xs font-bold text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span> 總共 • {unattendedRecords.length} 筆
               </span>
