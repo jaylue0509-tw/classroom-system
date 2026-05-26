@@ -10,7 +10,7 @@ const db = getFirestore(app);
 
 async function checkData() {
   try {
-    const email = 'sandy.bfc@ettoday.net';
+    const email = 'f1665@ettoday.net';
     console.log(`Searching for records with email: ${email}`);
     const q = query(collection(db, 'attendances'), where('email', '==', email.toLowerCase().trim()));
     const snap = await getDocs(q);

@@ -535,9 +535,11 @@ function DashboardStats({ records }: { records: AttendanceRecord[] }) {
                     </div>
                     <div className="flex flex-col gap-1.5">
                       <div className="flex items-center gap-2">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm ${record.electiveOrRequired === '必修' ? 'text-red-500 bg-red-50' : 'text-purple-500 bg-purple-50'}`}>
-                          {record.electiveOrRequired}
-                        </span>
+                        {record.electiveOrRequired && record.electiveOrRequired !== 'X' && (
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm ${record.electiveOrRequired === '必修' ? 'text-red-500 bg-red-50' : 'text-purple-500 bg-purple-50'}`}>
+                            {record.electiveOrRequired}
+                          </span>
+                        )}
                         <span className="text-xs text-gray-400 font-bold">{record.date}</span>
                       </div>
                       <p className="text-base font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
@@ -584,9 +586,11 @@ function DashboardStats({ records }: { records: AttendanceRecord[] }) {
                     </div>
                     <div className="flex flex-col gap-1.5">
                       <div className="flex items-center gap-2">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm ${record.electiveOrRequired === '必修' ? 'text-red-500 bg-red-50' : 'text-purple-500 bg-purple-50'}`}>
-                          {record.electiveOrRequired}
-                        </span>
+                        {record.electiveOrRequired && record.electiveOrRequired !== 'X' && (
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm ${record.electiveOrRequired === '必修' ? 'text-red-500 bg-red-50' : 'text-purple-500 bg-purple-50'}`}>
+                            {record.electiveOrRequired}
+                          </span>
+                        )}
                         <span className="text-xs text-gray-400 font-bold">{record.date}</span>
                       </div>
                       <p className="text-base font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
