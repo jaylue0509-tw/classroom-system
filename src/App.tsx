@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useDeferredValue } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, LogOut, Upload, BookOpen, Clock, Award, AlertCircle, Loader2, Shield, ChevronLeft, FileText, X } from 'lucide-react';
 import { signInWithPopup, signInWithEmailAndPassword, onAuthStateChanged, User, signOut, setPersistence, browserLocalPersistence } from 'firebase/auth';
@@ -376,32 +376,51 @@ function DashboardScreen({ user, onLogout }: { user: AppUser; onLogout: () => vo
 function DashboardStats({ records }: { records: AttendanceRecord[] }) {
   const [showCourseModal, setShowCourseModal] = useState(false);
 
-  // Filter attended vs all for calculations
-  const attendedRecords = records.filter(r => r.status === '已報到');
-  
-  // --- Total Calculations (For the top 4 cards) ---
-  const totalCredits = attendedRecords.reduce((sum, record) => sum + (Number(record.hours) || 0), 0);
-  const totalCompleted = attendedRecords.length;
-  const totalEnrolled = records.length;
-  
-  const totalRequiredCount = attendedRecords.filter(r => r.electiveOrRequired === '必修').length;
-  const totalElectiveCount = attendedRecords.filter(r => r.electiveOrRequired === '選修').length;
-  
-  const requiredTarget = 2;
-  const electiveTarget = 4;
-  
-  const requiredMissing = Math.max(0, requiredTarget - totalRequiredCount);
-  const electiveMissing = Math.max(0, electiveTarget - totalElectiveCount);
+  // Memoize all heavy calculations so they don't re-run when modal toggles
+  const stats = useMemo(() => {
+    // Filter attended vs all for calculations
+    const attendedRecords = records.filter(r => r.status === '已報到');
+    
+    // --- Total Calculations (For the top 4 cards) ---
+    const totalCredits = attendedRecords.reduce((sum, record) => sum + (Number(record.hours) || 0), 0);
+    const totalCompleted = attendedRecords.length;
+    const totalEnrolled = records.length;
+    
+    const totalRequiredCount = attendedRecords.filter(r => r.electiveOrRequired === '必修').length;
+    const totalElectiveCount = attendedRecords.filter(r => r.electiveOrRequired === '選修').length;
+    
+    const requiredTarget = 2;
+    const electiveTarget = 4;
+    
+    const requiredMissing = Math.max(0, requiredTarget - totalRequiredCount);
+    const electiveMissing = Math.max(0, electiveTarget - totalElectiveCount);
 
-  // --- AI Specific Calculations (For the AI Courses section) ---
-  const isAICourse = (r: AttendanceRecord) => r.aiCredit === 'AI 學分課程' || r.aiCredit === 'V' || r.courseName.includes('AI');
-  const aiRecords = attendedRecords.filter(isAICourse);
-  const nonAiRecords = attendedRecords.filter(r => !isAICourse(r));
+    // --- AI Specific Calculations (For the AI Courses section) ---
+    const isAICourse = (r: AttendanceRecord) => r.aiCredit === 'AI 學分課程' || r.aiCredit === 'V' || r.courseName.includes('AI');
+    const aiRecords = attendedRecords.filter(isAICourse);
+    const nonAiRecords = attendedRecords.filter(r => !isAICourse(r));
 
-  const totalAICredits = aiRecords.reduce((sum, record) => sum + (Number(record.hours) || 0), 0);
-  const totalAICourses = aiRecords.length;
-  const aiRequiredCount = aiRecords.filter(r => r.electiveOrRequired === '必修').length;
-  const aiElectiveCount = aiRecords.filter(r => r.electiveOrRequired === '選修').length;
+    const totalAICredits = aiRecords.reduce((sum, record) => sum + (Number(record.hours) || 0), 0);
+    const totalAICourses = aiRecords.length;
+    const aiRequiredCount = aiRecords.filter(r => r.electiveOrRequired === '必修').length;
+    const aiElectiveCount = aiRecords.filter(r => r.electiveOrRequired === '選修').length;
+
+    return {
+      totalCredits, totalCompleted, totalEnrolled,
+      totalRequiredCount, totalElectiveCount,
+      requiredTarget, electiveTarget, requiredMissing, electiveMissing,
+      aiRecords, nonAiRecords,
+      totalAICredits, totalAICourses, aiRequiredCount, aiElectiveCount
+    };
+  }, [records]);
+
+  const { 
+    totalCredits, totalCompleted, totalEnrolled, 
+    totalRequiredCount, totalElectiveCount, 
+    requiredTarget, electiveTarget, requiredMissing, electiveMissing, 
+    aiRecords, nonAiRecords, 
+    totalAICredits, totalAICourses, aiRequiredCount, aiElectiveCount 
+  } = stats;
 
   return (
     <>
@@ -829,17 +848,23 @@ function AdminView() {
     });
   };
 
-  const filteredRecords = allRecords.filter(record => {
-    if (!searchTerm) return true;
-    const term = searchTerm.toLowerCase();
-    return (
-      record.name.toLowerCase().includes(term) ||
-      record.email.toLowerCase().includes(term) ||
-      record.courseName.toLowerCase().includes(term) ||
-      record.company.toLowerCase().includes(term) ||
-      record.department.toLowerCase().includes(term)
-    );
-  });
+  // Add deferred value to avoid blocking UI during fast typing
+  const deferredSearchTerm = useDeferredValue(searchTerm);
+
+  // Memoize filtered records so we don't recalculate unless search term or data changes
+  const filteredRecords = useMemo(() => {
+    return allRecords.filter(record => {
+      if (!deferredSearchTerm) return true;
+      const term = deferredSearchTerm.toLowerCase();
+      return (
+        record.name.toLowerCase().includes(term) ||
+        record.email.toLowerCase().includes(term) ||
+        record.courseName.toLowerCase().includes(term) ||
+        record.company.toLowerCase().includes(term) ||
+        record.department.toLowerCase().includes(term)
+      );
+    });
+  }, [allRecords, deferredSearchTerm]);
 
   return (
     <motion.div
