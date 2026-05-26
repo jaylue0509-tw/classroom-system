@@ -372,7 +372,7 @@ function DashboardScreen({ user, onLogout }: { user: AppUser; onLogout: () => vo
 }
 
 // --- My Courses View ---
-function MyCoursesView({ userEmail }: { userEmail: string }) {
+function MyCoursesView({ userEmail }: { userEmail: string; key?: string }) {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
