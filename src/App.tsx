@@ -374,6 +374,13 @@ function DashboardScreen({ user, onLogout }: { user: AppUser; onLogout: () => vo
 
 // --- Dashboard Stats Component ---
 function DashboardStats({ records }: { records: AttendanceRecord[] }) {
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 100;
+
+  // Reset page when records change (e.g. searching)
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [records]);
 
   // Memoize all heavy calculations so they don't re-run when modal toggles
   const stats = useMemo(() => {
@@ -420,6 +427,13 @@ function DashboardStats({ records }: { records: AttendanceRecord[] }) {
     aiRecords, nonAiRecords, 
     totalAICredits, totalAICourses, aiRequiredCount, aiElectiveCount 
   } = stats;
+
+  // Pagination logic for the three lists
+  const paginatedAiRecords = aiRecords.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const paginatedNonAiRecords = nonAiRecords.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const paginatedAllRecords = records.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  
+  const totalPages = Math.max(1, Math.ceil(Math.max(aiRecords.length, nonAiRecords.length, records.length) / itemsPerPage));
 
   return (
     <>
@@ -523,7 +537,7 @@ function DashboardStats({ records }: { records: AttendanceRecord[] }) {
             </div>
           ) : (
             <ul className="divide-y divide-gray-100/60 px-4 pb-4">
-              {aiRecords.map((record) => (
+              {paginatedAiRecords.map((record, i) => (
                 <li key={record.id} className="p-4 transition-colors hover:bg-white/60 rounded-2xl group flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex gap-4 items-start">
                     <div className="hidden sm:flex mt-1 w-12 h-12 rounded-xl bg-orange-50 text-orange-500 items-center justify-center font-black text-sm text-center leading-tight tracking-wider">
@@ -574,7 +588,7 @@ function DashboardStats({ records }: { records: AttendanceRecord[] }) {
             </div>
           ) : (
             <ul className="divide-y divide-gray-100/60 px-4 pb-4">
-              {nonAiRecords.map((record) => (
+              {paginatedNonAiRecords.map((record, i) => (
                 <li key={record.id} className="p-4 transition-colors hover:bg-white/60 rounded-2xl group flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex gap-4 items-start">
                     <div className="hidden sm:flex mt-1 w-12 h-12 rounded-xl bg-blue-50 text-blue-500 items-center justify-center font-black text-sm text-center leading-tight tracking-wider">
@@ -625,7 +639,7 @@ function DashboardStats({ records }: { records: AttendanceRecord[] }) {
             </div>
           ) : (
             <ul className="divide-y divide-gray-100/60 px-4 pb-4">
-              {records.map((record, i) => {
+              {paginatedAllRecords.map((record, i) => {
                 const isAttended = record.status === '已報到';
                 return (
                   <li key={`${record.id}-${i}`} className="p-4 transition-colors hover:bg-white/60 rounded-2xl group flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -659,13 +673,36 @@ function DashboardStats({ records }: { records: AttendanceRecord[] }) {
                         </div>
                       )}
                     </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-4 py-4">
+          <button
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            className="px-4 py-2 rounded-xl font-bold text-sm bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+          >
+            上一頁
+          </button>
+          <span className="text-sm font-bold text-gray-500">
+            第 {currentPage} 頁，共 {totalPages} 頁
+          </span>
+          <button
+            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            className="px-4 py-2 rounded-xl font-bold text-sm bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+          >
+            下一頁
+          </button>
         </div>
-      </motion.div>
+      )}
+    </motion.div>
     </>
   );
 }
