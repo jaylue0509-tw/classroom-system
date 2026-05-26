@@ -647,10 +647,11 @@ function DashboardStats({ records, allCompanyRecords }: { records: AttendanceRec
           
           {unattendedRecords.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-gray-400">
-                <AlertCircle className="h-8 w-8" />
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-orange-100 text-orange-500">
+                <Award className="h-8 w-8" />
               </div>
-              <p className="text-lg font-bold text-gray-900">目前尚無任何紀錄</p>
+              <p className="text-lg font-bold text-gray-900">太厲害了！</p>
+              <p className="text-sm font-bold text-gray-500 mt-1">您已經上完所有已開課程！</p>
             </div>
           ) : (
             <ul className="divide-y divide-gray-100/60 px-3 pb-4">
