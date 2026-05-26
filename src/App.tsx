@@ -371,40 +371,7 @@ function DashboardScreen({ user, onLogout }: { user: AppUser; onLogout: () => vo
   );
 }
 
-// --- My Courses View ---
-function MyCoursesView({ userEmail }: { userEmail: string; key?: string }) {
-  const [records, setRecords] = useState<AttendanceRecord[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function fetchAttendances() {
-      try {
-        const q = query(collection(db, 'attendances'), where('email', '==', userEmail.toLowerCase().trim()));
-        const snapshot = await getDocs(q);
-        const data: AttendanceRecord[] = [];
-        snapshot.forEach(doc => {
-          data.push({ id: doc.id, ...doc.data() } as AttendanceRecord);
-        });
-        
-        const validRecords = data
-          .filter(r => r.status === '已報到')
-          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-          
-        setRecords(validRecords);
-      } catch (error) {
-        handleFirestoreError(error, OperationType.LIST, 'attendances');
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchAttendances();
-  }, [userEmail]);
-
-  if (loading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-      </div>
 // --- Dashboard Stats Component ---
 function DashboardStats({ records }: { records: AttendanceRecord[] }) {
   // --- Total Calculations (For the top 4 cards) ---
@@ -834,4 +801,10 @@ function AdminView() {
       </div>
     </motion.div>
   );
+}
+
+// Default Avatar helper
+function UserAvatar({ name }: { name: string }) {
+  const initial = name.charAt(0).toUpperCase();
+  return <span className="text-lg font-semibold">{initial}</span>;
 }
