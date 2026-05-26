@@ -429,11 +429,12 @@ function DashboardStats({ records }: { records: AttendanceRecord[] }) {
   } = stats;
 
   // Pagination logic for the three lists
+  const unattendedRecords = records.filter(r => r.status !== '已報到');
   const paginatedAiRecords = aiRecords.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const paginatedNonAiRecords = nonAiRecords.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-  const paginatedAllRecords = records.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const paginatedUnattendedRecords = unattendedRecords.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   
-  const totalPages = Math.max(1, Math.ceil(Math.max(aiRecords.length, nonAiRecords.length, records.length) / itemsPerPage));
+  const totalPages = Math.max(1, Math.ceil(Math.max(aiRecords.length, nonAiRecords.length, unattendedRecords.length) / itemsPerPage));
 
   return (
     <>
@@ -619,18 +620,18 @@ function DashboardStats({ records }: { records: AttendanceRecord[] }) {
           )}
         </div>
 
-        {/* All Courses List (Including Unattended, now phrased positively) */}
+        {/* Unattended Courses List (Recommendations) */}
         <div className="rounded-[2.5rem] bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
           <div className="px-8 py-8 pb-4">
             <div className="flex justify-between items-center mb-5">
-              <h3 className="text-xl font-black tracking-tight text-gray-900">學習足跡與推薦 <span className="text-sm font-bold text-gray-500">(探索更多課程)</span></h3>
+              <h3 className="text-xl font-black tracking-tight text-gray-900">學習推薦</h3>
               <span className="text-xs font-bold text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span> 總共 • {records.length} 筆
+                <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span> 總共 • {unattendedRecords.length} 筆
               </span>
             </div>
           </div>
           
-          {records.length === 0 ? (
+          {unattendedRecords.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-gray-400">
                 <AlertCircle className="h-8 w-8" />
@@ -639,13 +640,13 @@ function DashboardStats({ records }: { records: AttendanceRecord[] }) {
             </div>
           ) : (
             <ul className="divide-y divide-gray-100/60 px-4 pb-4">
-              {paginatedAllRecords.map((record, i) => {
-                const isAttended = record.status === '已報到';
+              {paginatedUnattendedRecords.map((record, i) => {
+                const isAttended = false; // By definition, these are unattended
                 return (
                   <li key={`${record.id}-${i}`} className="p-4 transition-colors hover:bg-white/60 rounded-2xl group flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex gap-4 items-start">
                       <div className="hidden sm:flex mt-1 w-12 h-12 rounded-xl bg-gray-50 text-gray-500 items-center justify-center font-black text-sm text-center leading-tight tracking-wider">
-                        學習<br/>足跡
+                        學習<br/>推薦
                       </div>
                       <div className="flex flex-col gap-1.5">
                         <div className="flex items-center gap-2">
