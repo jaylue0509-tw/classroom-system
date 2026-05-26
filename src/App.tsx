@@ -412,11 +412,11 @@ function DashboardStats({ records, allCompanyRecords }: { records: AttendanceRec
     const aiElectiveCount = aiRecords.filter(r => r.electiveOrRequired === '選修').length;
 
     // --- Recommendations (Courses not taken) ---
-    const attendedCourseNames = new Set(attendedRecords.map(r => r.courseName.trim()));
+    const attendedCourseNames = new Set(attendedRecords.map(r => (r.courseName || '').trim()));
     const recommendedMap = new Map<string, AttendanceRecord>();
     
     allCompanyRecords.forEach(r => {
-      const cName = r.courseName.trim();
+      const cName = (r.courseName || '').trim();
       if (cName && !attendedCourseNames.has(cName) && !recommendedMap.has(cName)) {
         recommendedMap.set(cName, { ...r, id: `rec-${cName}`, status: '未報到' });
       }
@@ -660,7 +660,7 @@ function DashboardStats({ records, allCompanyRecords }: { records: AttendanceRec
                   <li key={`${record.id}-${i}`} className="p-4 transition-colors hover:bg-white/60 rounded-2xl group flex flex-col gap-3">
                     <div className="flex gap-3 items-start">
                       <div className="hidden sm:flex mt-1 w-10 h-10 shrink-0 rounded-xl bg-gray-50 text-gray-500 items-center justify-center font-black text-xs text-center leading-tight tracking-wider">
-                        歷史<br/>開課
+                        歷史<br/>課程
                       </div>
                       <div className="flex flex-col gap-1.5">
                         <div className="flex items-center gap-2">
@@ -929,12 +929,13 @@ function AdminView() {
     return allRecords.filter(record => {
       if (!debouncedTerm) return true;
       const term = debouncedTerm.toLowerCase();
+      const safeIncludes = (val: any) => (val || '').toString().toLowerCase().includes(term);
       return (
-        record.name.toLowerCase().includes(term) ||
-        record.email.toLowerCase().includes(term) ||
-        record.courseName.toLowerCase().includes(term) ||
-        record.company.toLowerCase().includes(term) ||
-        record.department.toLowerCase().includes(term)
+        safeIncludes(record.name) ||
+        safeIncludes(record.email) ||
+        safeIncludes(record.courseName) ||
+        safeIncludes(record.company) ||
+        safeIncludes(record.department)
       );
     });
   }, [allRecords, debouncedTerm]);
