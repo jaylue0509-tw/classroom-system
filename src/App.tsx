@@ -605,11 +605,11 @@ function DashboardStats({ records }: { records: AttendanceRecord[] }) {
           )}
         </div>
 
-        {/* All Courses List (Including Unattended) */}
+        {/* All Courses List (Including Unattended, now phrased positively) */}
         <div className="rounded-[2.5rem] bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
           <div className="px-8 py-8 pb-4">
             <div className="flex justify-between items-center mb-5">
-              <h3 className="text-xl font-black tracking-tight text-gray-900">所有課程紀錄 <span className="text-sm font-bold text-gray-500">(含未報到)</span></h3>
+              <h3 className="text-xl font-black tracking-tight text-gray-900">學習足跡與推薦 <span className="text-sm font-bold text-gray-500">(探索更多課程)</span></h3>
               <span className="text-xs font-bold text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span> 總共 • {records.length} 筆
               </span>
@@ -631,7 +631,7 @@ function DashboardStats({ records }: { records: AttendanceRecord[] }) {
                   <li key={`${record.id}-${i}`} className="p-4 transition-colors hover:bg-white/60 rounded-2xl group flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex gap-4 items-start">
                       <div className="hidden sm:flex mt-1 w-12 h-12 rounded-xl bg-gray-50 text-gray-500 items-center justify-center font-black text-sm text-center leading-tight tracking-wider">
-                        所有<br/>紀錄
+                        學習<br/>足跡
                       </div>
                       <div className="flex flex-col gap-1.5">
                         <div className="flex items-center gap-2">
@@ -649,8 +649,8 @@ function DashboardStats({ records }: { records: AttendanceRecord[] }) {
                       </div>
                     </div>
                     <div className="flex items-center gap-3 pr-2">
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold border ${isAttended ? 'bg-green-50 text-green-600 border-green-200' : 'bg-red-50 text-red-500 border-red-200'}`}>
-                        {isAttended ? '✅ 已報到' : '❌ 未報到'}
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold border ${isAttended ? 'bg-green-50 text-green-600 border-green-200' : 'bg-orange-50 text-orange-500 border-orange-200'}`}>
+                        {isAttended ? '✅ 已報到' : '✨ 推薦探索'}
                       </span>
                       {isAttended && (
                         <div className="flex flex-col items-end justify-center min-w-[3rem]">
