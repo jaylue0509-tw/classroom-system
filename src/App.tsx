@@ -57,21 +57,49 @@ interface AttendanceRecord {
   status: string;
 }
 
+export interface AppUser {
+  email: string;
+  displayName: string;
+  isAdmin: boolean;
+}
+
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const studentData = localStorage.getItem('student_login');
+    if (studentData) {
+      setUser(JSON.parse(studentData));
+      setLoading(false);
+      return;
+    }
+
     setPersistence(auth, browserLocalPersistence);
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+      if (currentUser) {
+        setUser({ email: currentUser.email || '', displayName: currentUser.displayName || '管理員', isAdmin: currentUser.email === ADMIN_EMAIL });
+      } else {
+        if (!localStorage.getItem('student_login')) {
+          setUser(null);
+        }
+      }
       setLoading(false);
     });
     return () => unsubscribe();
   }, []);
 
   const handleLogout = () => {
-    signOut(auth);
+    if (user?.isAdmin) {
+      signOut(auth);
+    } else {
+      localStorage.removeItem('student_login');
+      setUser(null);
+    }
+  };
+
+  const handleStudentLogin = (studentUser: AppUser) => {
+    setUser(studentUser);
   };
 
   if (loading) {
@@ -94,7 +122,7 @@ export default function App() {
       <main className="relative z-10 mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
         <AnimatePresence mode="wait">
           {!user ? (
-            <LoginScreen key="login" />
+            <LoginScreen key="login" onStudentLogin={handleStudentLogin} />
           ) : (
             <DashboardScreen key="dashboard" user={user} onLogout={handleLogout} />
           )}
@@ -105,23 +133,46 @@ export default function App() {
 }
 
 // --- Login Screen ---
-function LoginScreen() {
+function LoginScreen({ onStudentLogin }: { onStudentLogin: (user: AppUser) => void; key?: string }) {
   const [mode, setMode] = useState<'user' | 'admin'>('user');
   
   // Admin form state (NO DEFAULT VALUES AS REQUESTED)
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
+  
+  // Student form state
+  const [studentName, setStudentName] = useState('');
+  const [studentEmail, setStudentEmail] = useState('');
+
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  const handleGoogleLogin = async () => {
+  const handleStudentLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!studentName || !studentEmail) {
+      setLoginError('請填寫完整姓名與公司信箱');
+      return;
+    }
+    
+    setIsLoggingIn(true);
+    setLoginError('');
+    
     try {
-      setIsLoggingIn(true);
-      setLoginError('');
-      await signInWithPopup(auth, googleProvider);
-    } catch (error: any) {
-      console.error('Login error', error);
-      setLoginError(error.message || '登入失敗，請稍後再試。');
+      const q = query(collection(db, 'attendances'), where('email', '==', studentEmail.toLowerCase().trim()));
+      const snap = await getDocs(q);
+      
+      if (snap.empty) {
+        setLoginError('查無此信箱的修課紀錄，請確認信箱是否輸入正確');
+        setIsLoggingIn(false);
+        return;
+      }
+      
+      const userObj: AppUser = { email: studentEmail.toLowerCase().trim(), displayName: studentName.trim(), isAdmin: false };
+      localStorage.setItem('student_login', JSON.stringify(userObj));
+      onStudentLogin(userObj);
+    } catch (err: any) {
+      console.error('Student Login error', err);
+      setLoginError('查詢失敗，請稍後再試。');
       setIsLoggingIn(false);
     }
   };
@@ -154,13 +205,13 @@ function LoginScreen() {
       {/* Toggle */}
       <div className="flex bg-gray-200/50 rounded-full p-1.5 mb-10 backdrop-blur-md">
         <button 
-          onClick={() => setMode('user')}
+          onClick={() => { setMode('user'); setLoginError(''); }}
           className={`px-8 py-2.5 rounded-full text-sm font-semibold transition-all ${mode === 'user' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
         >
           同仁查詢
         </button>
         <button 
-          onClick={() => setMode('admin')}
+          onClick={() => { setMode('admin'); setLoginError(''); }}
           className={`px-8 py-2.5 rounded-full text-sm font-semibold transition-all ${mode === 'admin' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
         >
           人資管理
@@ -174,7 +225,7 @@ function LoginScreen() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="flex flex-col items-center"
+            className="flex flex-col items-center w-full max-w-sm"
           >
             <div className="mb-8 rounded-[2rem] bg-white/60 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white/40">
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-500 text-white shadow-lg">
@@ -184,24 +235,41 @@ function LoginScreen() {
             <h1 className="mb-4 text-4xl font-bold tracking-tight sm:text-5xl text-gray-900">
               學分查詢系統
             </h1>
-            <p className="mb-10 max-w-md text-lg text-gray-500 font-medium">
-              為保障您的資料安全與隱私，系統已升級。請使用您的公司 Google 帳號登入，一鍵查看您的專屬學習紀錄。
+            <p className="mb-8 text-lg text-gray-500 font-medium">
+              請輸入您的姓名與公司信箱，一鍵查看您的專屬學習紀錄。
             </p>
-            {loginError && <p className="mb-4 text-red-500 font-medium">{loginError}</p>}
-            <button
-              onClick={handleGoogleLogin}
-              disabled={isLoggingIn}
-              className="group relative flex items-center justify-center gap-3 overflow-hidden rounded-2xl bg-[#1D1D1F] px-8 py-4 text-lg font-medium text-white transition-all hover:bg-[#2D2D2F] active:scale-[0.98] disabled:opacity-70 disabled:active:scale-100"
-            >
-              {isLoggingIn ? <Loader2 className="h-6 w-6 animate-spin" /> : (
-                <>
-                  <span>Google 登入查看學分</span>
-                  <motion.div className="rounded-full bg-white/20 p-1" whileHover={{ x: 3 }}>
-                    <Search className="h-5 w-5" />
-                  </motion.div>
-                </>
-              )}
-            </button>
+            
+            <form onSubmit={handleStudentLogin} className="flex flex-col gap-4 w-full">
+              <input 
+                type="text" 
+                placeholder="請輸入姓名 (例如: 江建鴻)" 
+                className="w-full bg-white/80 rounded-2xl px-6 py-4 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all text-gray-900 font-medium placeholder:text-gray-400 placeholder:font-normal border border-gray-200" 
+                value={studentName} 
+                onChange={e => setStudentName(e.target.value)}
+                disabled={isLoggingIn} 
+                autoComplete="name"
+              />
+              <input 
+                type="email" 
+                placeholder="請輸入公司信箱" 
+                className="w-full bg-white/80 rounded-2xl px-6 py-4 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all text-gray-900 font-medium placeholder:text-gray-400 placeholder:font-normal border border-gray-200" 
+                value={studentEmail} 
+                onChange={e => setStudentEmail(e.target.value)}
+                disabled={isLoggingIn}
+                autoComplete="email"
+              />
+              
+              {loginError && <p className="text-red-500 text-sm font-medium text-left px-2">{loginError}</p>}
+              
+              <button 
+                type="submit" 
+                disabled={isLoggingIn}
+                className="w-full bg-[#1D1D1F] text-white rounded-2xl px-6 py-4 font-bold flex justify-center items-center gap-2 mt-2 hover:bg-[#2D2D2F] transition-all active:scale-[0.98] disabled:opacity-70 disabled:active:scale-100"
+              >
+                {isLoggingIn ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />} 
+                查詢學分紀錄
+              </button>
+            </form>
           </motion.div>
         ) : (
           <motion.div
@@ -261,7 +329,7 @@ function LoginScreen() {
 }
 
 // --- Dashboard Screen ---
-function DashboardScreen({ user, onLogout }: { user: User; onLogout: () => void }) {
+function DashboardScreen({ user, onLogout }: { user: AppUser; onLogout: () => void; key?: string }) {
   const isAdmin = user.email === ADMIN_EMAIL;
 
   return (
@@ -304,7 +372,7 @@ function DashboardScreen({ user, onLogout }: { user: User; onLogout: () => void 
 }
 
 // --- My Courses View ---
-function MyCoursesView({ userEmail }: { userEmail: string }) {
+function MyCoursesView({ userEmail }: { userEmail: string; key?: string }) {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
