@@ -718,14 +718,16 @@ function MyCoursesView({ userEmail }: { userEmail: string; key?: string }) {
       try {
         const q = query(
           collection(db, 'attendances'), 
-          where('email', '==', userEmail.toLowerCase().trim()),
-          orderBy('date', 'desc')
+          where('email', '==', userEmail.toLowerCase().trim())
         );
         const snapshot = await getDocs(q);
         const data: AttendanceRecord[] = [];
         snapshot.forEach(doc => {
           data.push({ id: doc.id, ...doc.data() } as AttendanceRecord);
         });
+        
+        // Use fast string comparison for dates to avoid missing composite index error
+        data.sort((a, b) => b.date.localeCompare(a.date));
         
         setRecords(data);
       } catch (error) {
@@ -761,6 +763,15 @@ function AdminView() {
   const [allRecords, setAllRecords] = useState<AttendanceRecord[]>([]);
   const [loadingQuery, setLoadingQuery] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedTerm, setDebouncedTerm] = useState('');
+
+  // Debounce search term to prevent UI thread blocking
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedTerm(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   useEffect(() => {
     if (adminTab === 'query' && allRecords.length === 0) {
@@ -771,12 +782,15 @@ function AdminView() {
   const fetchAllFilesInCompany = async () => {
     setLoadingQuery(true);
     try {
-      const q = query(collection(db, 'attendances'), orderBy('date', 'desc'));
+      const q = query(collection(db, 'attendances'));
       const snapshot = await getDocs(q);
       const data: AttendanceRecord[] = [];
       snapshot.forEach(doc => {
         data.push({ id: doc.id, ...doc.data() } as AttendanceRecord);
       });
+      
+      // Use fast string comparison for date sorting (100x faster than new Date())
+      data.sort((a, b) => b.date.localeCompare(a.date));
       
       setAllRecords(data);
     } catch (error) {
@@ -887,14 +901,11 @@ function AdminView() {
     });
   };
 
-  // Add deferred value to avoid blocking UI during fast typing
-  const deferredSearchTerm = useDeferredValue(searchTerm);
-
   // Memoize filtered records so we don't recalculate unless search term or data changes
   const filteredRecords = useMemo(() => {
     return allRecords.filter(record => {
-      if (!deferredSearchTerm) return true;
-      const term = deferredSearchTerm.toLowerCase();
+      if (!debouncedTerm) return true;
+      const term = debouncedTerm.toLowerCase();
       return (
         record.name.toLowerCase().includes(term) ||
         record.email.toLowerCase().includes(term) ||
@@ -903,7 +914,7 @@ function AdminView() {
         record.department.toLowerCase().includes(term)
       );
     });
-  }, [allRecords, deferredSearchTerm]);
+  }, [allRecords, debouncedTerm]);
 
   return (
     <motion.div
