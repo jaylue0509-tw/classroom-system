@@ -669,21 +669,15 @@ function DashboardStats({ records, allCompanyRecords }: { records: AttendanceRec
                           <span className="text-xs text-gray-400 font-bold">{record.date}</span>
                         </div>
                         <p className="text-base font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
-                          {record.courseName} <span className="text-sm font-medium text-gray-500 ml-2">({record.name})</span>
+                          {record.courseName}
                         </p>
-                        <p className="text-xs text-gray-400 font-bold">{record.company}·{record.department}</p>
+                        <p className="text-xs text-gray-400 font-bold">預計時數: {record.hours} 小時</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3 pr-2">
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold border ${isAttended ? 'bg-green-50 text-green-600 border-green-200' : 'bg-orange-50 text-orange-500 border-orange-200'}`}>
-                        {isAttended ? '✅ 已報到' : '✨ 推薦探索'}
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold border bg-orange-50 text-orange-500 border-orange-200`}>
+                        ✨ 推薦探索
                       </span>
-                      {isAttended && (
-                        <div className="flex flex-col items-end justify-center min-w-[3rem]">
-                          <span className="text-xl font-black text-gray-900">+{record.hours}</span>
-                          <span className="text-[10px] font-bold text-gray-400">時數</span>
-                        </div>
-                      )}
                     </div>
                 </li>
               );
