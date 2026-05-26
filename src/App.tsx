@@ -372,7 +372,7 @@ function DashboardScreen({ user, onLogout }: { user: AppUser; onLogout: () => vo
 }
 
 // --- My Courses View ---
-function MyCoursesView({ userEmail }: { userEmail: string; key?: string }) {
+function MyCoursesView({ userEmail }: { userEmail: string }) {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -408,21 +408,27 @@ function MyCoursesView({ userEmail }: { userEmail: string; key?: string }) {
     );
   }
 
-  // Filter for AI courses ONLY for the top calculations! (This fixes Issue #1)
+  // --- Total Calculations (For the top 4 cards) ---
+  const totalCredits = records.reduce((sum, record) => sum + (Number(record.hours) || 0), 0);
+  const totalCourses = records.length;
+  
+  const totalRequiredCount = records.filter(r => r.electiveOrRequired === '必修').length;
+  const totalElectiveCount = records.filter(r => r.electiveOrRequired === '選修').length;
+  
+  const requiredTarget = 2;
+  const electiveTarget = 4;
+  
+  const requiredMissing = Math.max(0, requiredTarget - totalRequiredCount);
+  const electiveMissing = Math.max(0, electiveTarget - totalElectiveCount);
+
+  // --- AI Specific Calculations (For the AI Courses section) ---
   const isAICourse = (r: AttendanceRecord) => r.aiCredit === 'AI 學分課程' || r.aiCredit === 'V' || r.courseName.includes('AI');
   const aiRecords = records.filter(isAICourse);
 
   const totalAICredits = aiRecords.reduce((sum, record) => sum + (Number(record.hours) || 0), 0);
   const totalAICourses = aiRecords.length;
-  
-  const requiredCount = aiRecords.filter(r => r.electiveOrRequired === '必修').length;
-  const electiveCount = aiRecords.filter(r => r.electiveOrRequired === '選修').length;
-  
-  const requiredTarget = 2;
-  const electiveTarget = 4;
-  
-  const requiredMissing = Math.max(0, requiredTarget - requiredCount);
-  const electiveMissing = Math.max(0, electiveTarget - electiveCount);
+  const aiRequiredCount = aiRecords.filter(r => r.electiveOrRequired === '必修').length;
+  const aiElectiveCount = aiRecords.filter(r => r.electiveOrRequired === '選修').length;
 
   return (
     <motion.div
@@ -443,7 +449,7 @@ function MyCoursesView({ userEmail }: { userEmail: string; key?: string }) {
             <div className="text-right flex flex-col items-end">
               <p className="text-xs font-bold text-gray-400 mb-1">累計修課時數</p>
               <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-black tracking-tight text-gray-900">{totalAICredits}</span>
+                <span className="text-4xl font-black tracking-tight text-gray-900">{totalCredits}</span>
                 <span className="text-xs font-bold text-gray-400">時數</span>
               </div>
             </div>
@@ -459,7 +465,7 @@ function MyCoursesView({ userEmail }: { userEmail: string; key?: string }) {
             <div className="text-right flex flex-col items-end">
               <p className="text-xs font-bold text-gray-400 mb-1">完成課程總數</p>
               <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-black tracking-tight text-gray-900">{totalAICourses}</span>
+                <span className="text-4xl font-black tracking-tight text-gray-900">{totalCourses}</span>
                 <span className="text-xs font-bold text-gray-400">課程</span>
               </div>
             </div>
@@ -470,13 +476,13 @@ function MyCoursesView({ userEmail }: { userEmail: string; key?: string }) {
         <div className="flex flex-col justify-center rounded-[2rem] bg-white/80 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
           <div className="flex justify-between items-center mb-4">
             <span className="px-3 py-1 bg-red-50 text-red-500 text-xs font-bold rounded-full">必修</span>
-            <span className="text-gray-400 text-sm font-bold">{requiredCount}/{requiredTarget}</span>
+            <span className="text-gray-400 text-sm font-bold">{totalRequiredCount}/{requiredTarget}</span>
           </div>
           <div className="w-full bg-gray-100 rounded-full h-2 mb-3 overflow-hidden">
-            <div className="bg-red-400 h-2 rounded-full" style={{ width: `${Math.min(100, (requiredCount/requiredTarget)*100)}%` }}></div>
+            <div className="bg-red-400 h-2 rounded-full" style={{ width: `${Math.min(100, (totalRequiredCount/requiredTarget)*100)}%` }}></div>
           </div>
           <p className="text-xs text-gray-400 font-bold">
-            {requiredMissing > 0 ? `差 ${requiredMissing} 堂達標` : '已達標'}
+            {requiredMissing > 0 ? `差 ${requiredMissing} 堂達標` : '✅ 必修已達標'}
           </p>
         </div>
 
@@ -484,13 +490,13 @@ function MyCoursesView({ userEmail }: { userEmail: string; key?: string }) {
         <div className="flex flex-col justify-center rounded-[2rem] bg-white/80 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
           <div className="flex justify-between items-center mb-4">
             <span className="px-3 py-1 bg-purple-50 text-purple-500 text-xs font-bold rounded-full">選修</span>
-            <span className="text-gray-400 text-sm font-bold">{electiveCount}/{electiveTarget}</span>
+            <span className="text-gray-400 text-sm font-bold">{totalElectiveCount}/{electiveTarget}</span>
           </div>
           <div className="w-full bg-gray-100 rounded-full h-2 mb-3 overflow-hidden">
-            <div className="bg-purple-400 h-2 rounded-full" style={{ width: `${Math.min(100, (electiveCount/electiveTarget)*100)}%` }}></div>
+            <div className="bg-purple-400 h-2 rounded-full" style={{ width: `${Math.min(100, (totalElectiveCount/electiveTarget)*100)}%` }}></div>
           </div>
           <p className="text-xs text-gray-400 font-bold">
-            {electiveMissing > 0 ? `差 ${electiveMissing} 堂達標` : '已達標'}
+            {electiveMissing > 0 ? `差 ${electiveMissing} 堂達標` : '✅ 選修已達標'}
           </p>
         </div>
 
@@ -510,8 +516,8 @@ function MyCoursesView({ userEmail }: { userEmail: string; key?: string }) {
             <span className="flex items-center gap-1.5 bg-gray-50 text-gray-500 px-3 py-1.5 rounded-full border border-gray-100">
               <Clock className="w-3.5 h-3.5" /> {totalAICredits} 小時數
             </span>
-            <span className="text-red-500 bg-red-50 px-3 py-1.5 rounded-full">必修 {requiredCount} 堂</span>
-            <span className="text-purple-500 bg-purple-50 px-3 py-1.5 rounded-full">選修 {electiveCount} 堂</span>
+            <span className="text-red-500 bg-red-50 px-3 py-1.5 rounded-full">必修 {aiRequiredCount} 堂</span>
+            <span className="text-purple-500 bg-purple-50 px-3 py-1.5 rounded-full">選修 {aiElectiveCount} 堂</span>
           </div>
         </div>
         
@@ -557,17 +563,10 @@ function MyCoursesView({ userEmail }: { userEmail: string; key?: string }) {
 
 // --- Admin View ---
 function AdminView() {
-  const [adminTab, setAdminTab] = useState<'attendance' | 'presentation'>('attendance');
-  
   // --- Attendance Upload State ---
   const [uploading, setUploading] = useState(false);
   const [status, setStatus] = useState<{ type: 'idle' | 'success' | 'error'; message: string }>({ type: 'idle', message: '' });
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // --- Presentation Generation State ---
-  const [presentationFiles, setPresentationFiles] = useState<File[]>([]);
-  const [generating, setGenerating] = useState(false);
-  const [reportResult, setReportResult] = useState<any>(null);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -663,41 +662,6 @@ function AdminView() {
     });
   };
 
-  const handlePresentationUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      setPresentationFiles(Array.from(event.target.files));
-    }
-  };
-
-  const generatePresentation = async () => {
-    if (presentationFiles.length === 0) return;
-    setGenerating(true);
-    
-    const formData = new FormData();
-    presentationFiles.forEach(file => {
-      formData.append('files', file);
-    });
-
-    try {
-      // 呼叫 FastAPI 後端 (假設後端在 localhost:8000 執行)
-      const response = await fetch('http://localhost:8000/api/generate-report', {
-        method: 'POST',
-        body: formData,
-      });
-      
-      if (!response.ok) {
-        throw new Error('生成失敗，請確認後端服務是否啟動');
-      }
-      
-      const data = await response.json();
-      setReportResult(data);
-    } catch (error: any) {
-      alert(error.message);
-    } finally {
-      setGenerating(false);
-    }
-  };
-
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.98 }}
@@ -706,125 +670,29 @@ function AdminView() {
       className="overflow-hidden rounded-[2.5rem] bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white"
     >
       <div className="border-b border-gray-100/60 bg-white/40 px-8 py-6">
-        <h3 className="text-xl font-bold tracking-tight text-gray-900 mb-4">系統管理</h3>
-        
-        {/* Tab 切換 */}
-        <div className="flex gap-2">
-          <button 
-            onClick={() => setAdminTab('attendance')}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${adminTab === 'attendance' ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-50'}`}
-          >
-            學分資料匯入
-          </button>
-          <button 
-            onClick={() => setAdminTab('presentation')}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${adminTab === 'presentation' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500 hover:bg-gray-50'}`}
-          >
-            自動化簡報生成
-          </button>
-        </div>
+        <h3 className="text-xl font-bold tracking-tight text-gray-900 mb-2">人資管理後台</h3>
+        <p className="text-sm text-gray-500 font-medium">直接上傳最新的 CSV 檔案，系統將會完全覆蓋舊紀錄，以最新檔案為主。</p>
       </div>
 
       <div className="p-8 pb-12">
-        <AnimatePresence mode="wait">
-          {adminTab === 'attendance' && (
-            <motion.div key="attendance" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center">
-              <p className="mb-6 text-sm text-gray-500 font-medium">直接上傳最新的 CSV 檔案，系統將會完全覆蓋舊紀錄，以最新檔案為主。</p>
-              <label className={`group relative flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-gray-300 bg-white hover:bg-blue-50/30 hover:border-[#0071E3] transition-all px-6 py-16 ${uploading ? 'pointer-events-none opacity-50' : ''}`}>
-                 <div className="rounded-2xl bg-blue-50 p-4 transition-transform group-hover:scale-110 mb-4">
-                    <Upload className="h-8 w-8 text-blue-600" />
-                 </div>
-                 <p className="text-lg font-bold text-gray-900 mb-1">點擊或拖曳 CSV 檔案至此</p>
-                 <p className="text-sm font-medium text-gray-500">支援副檔名：.csv</p>
-                 <input type="file" className="hidden" accept=".csv" onChange={handleFileUpload} disabled={uploading} ref={fileInputRef} />
-              </label>
-              {status.message && (
-                <div className="mt-6 flex flex-col items-center justify-center gap-3">
-                  {uploading && <Loader2 className="h-8 w-8 animate-spin text-blue-500" /> }
-                  <p className={`text-sm font-bold px-4 py-2 rounded-full ${status.type === 'error' ? 'bg-red-50 text-red-500' : status.type === 'success' ? 'bg-green-50 text-green-500' : 'bg-blue-50 text-blue-500'}`}>
-                    {status.message}
-                  </p>
-                </div>
-              )}
-            </motion.div>
+        <div className="text-center w-full max-w-2xl mx-auto">
+          <label className={`group relative flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-gray-300 bg-white hover:bg-blue-50/30 hover:border-[#0071E3] transition-all px-6 py-16 ${uploading ? 'pointer-events-none opacity-50' : ''}`}>
+             <div className="rounded-2xl bg-blue-50 p-4 transition-transform group-hover:scale-110 mb-4">
+                <Upload className="h-8 w-8 text-blue-600" />
+             </div>
+             <p className="text-lg font-bold text-gray-900 mb-1">點擊或拖曳 CSV 檔案至此</p>
+             <p className="text-sm font-medium text-gray-500">支援副檔名：.csv</p>
+             <input type="file" className="hidden" accept=".csv" onChange={handleFileUpload} disabled={uploading} ref={fileInputRef} />
+          </label>
+          {status.message && (
+            <div className="mt-6 flex flex-col items-center justify-center gap-3">
+              {uploading && <Loader2 className="h-8 w-8 animate-spin text-blue-500" /> }
+              <p className={`text-sm font-bold px-4 py-2 rounded-full ${status.type === 'error' ? 'bg-red-50 text-red-500' : status.type === 'success' ? 'bg-green-50 text-green-500' : 'bg-blue-50 text-blue-500'}`}>
+                {status.message}
+              </p>
+            </div>
           )}
-
-          {adminTab === 'presentation' && (
-            <motion.div key="presentation" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <p className="mb-6 text-sm text-gray-500 font-medium text-center">依據 SA/SD 設計，支援上傳 Excel、PDF、TXT、PNG 素材，系統將自動判斷寫法並生成 PPTX。</p>
-              
-              <div className="flex flex-col sm:flex-row gap-6">
-                <div className="flex-1">
-                  <label className="group relative flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-gray-300 bg-white hover:bg-indigo-50/30 hover:border-indigo-500 transition-all px-6 py-12">
-                     <div className="rounded-2xl bg-indigo-50 p-4 transition-transform group-hover:scale-110 mb-4">
-                        <FileText className="h-8 w-8 text-indigo-600" />
-                     </div>
-                     <p className="text-base font-bold text-gray-900 mb-1">上傳本週報告素材</p>
-                     <p className="text-xs font-medium text-gray-500 text-center">支援多選檔案 (Excel, PDF, TXT...)</p>
-                     <input type="file" className="hidden" multiple onChange={handlePresentationUpload} />
-                  </label>
-                  
-                  {presentationFiles.length > 0 && (
-                    <div className="mt-4 flex flex-col gap-2">
-                      <p className="text-sm font-bold text-gray-700">已選取 {presentationFiles.length} 個檔案：</p>
-                      <ul className="text-xs text-gray-500">
-                        {presentationFiles.map((f, i) => (
-                          <li key={i}>• {f.name}</li>
-                        ))}
-                      </ul>
-                      <button 
-                        onClick={generatePresentation}
-                        disabled={generating}
-                        className="mt-2 w-full flex justify-center items-center gap-2 bg-indigo-600 text-white rounded-xl px-4 py-3 font-bold hover:bg-indigo-700 disabled:opacity-50"
-                      >
-                        {generating ? <Loader2 className="h-5 w-5 animate-spin" /> : <Shield className="h-5 w-5" />}
-                        開始智能生成簡報
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex-1 bg-gray-50/50 rounded-3xl p-6 border border-gray-100">
-                  <h4 className="font-bold text-gray-900 mb-4">生成結果與審核區</h4>
-                  
-                  {!reportResult ? (
-                    <div className="flex h-32 items-center justify-center text-sm text-gray-400 font-medium">
-                      尚未生成簡報
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-4">
-                      <div className="bg-white p-4 rounded-xl border border-gray-200">
-                        <p className="text-xs text-gray-400 font-bold mb-1">系統判斷寫法</p>
-                        <p className="text-lg font-black text-indigo-600">Type {reportResult.strategy_used.primary_style}</p>
-                        <p className="text-sm text-gray-600 mt-1">{reportResult.strategy_used.reason}</p>
-                      </div>
-                      
-                      <div className="bg-white p-4 rounded-xl border border-gray-200">
-                        <p className="text-xs text-gray-400 font-bold mb-2">建議審核清單</p>
-                        <ul className="text-sm text-gray-600 flex flex-col gap-1">
-                          {reportResult.strategy_used.review_points.map((pt: string, i: number) => (
-                            <li key={i} className="flex items-center gap-2">
-                              <AlertCircle className="w-4 h-4 text-orange-500" /> {pt}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-
-                      <div className="flex gap-2 mt-2">
-                        <a href={reportResult.download_url_pptx} className="flex-1 bg-green-50 text-green-600 font-bold text-sm rounded-lg px-4 py-3 text-center hover:bg-green-100 transition-colors">
-                          下載 PPTX
-                        </a>
-                        <a href={reportResult.download_url_pdf} className="flex-1 bg-red-50 text-red-600 font-bold text-sm rounded-lg px-4 py-3 text-center hover:bg-red-100 transition-colors">
-                          下載 PDF
-                        </a>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        </div>
       </div>
     </motion.div>
   );
