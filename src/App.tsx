@@ -520,6 +520,9 @@ function DashboardStats({ records, allCompanyRecords }: { records: AttendanceRec
 
         </div>
 
+        {/* 3 Columns Layout for Lists */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 items-start gap-6">
+
         {/* AI Course List */}
         <div className="rounded-[2.5rem] bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
           <div className="px-8 py-8 pb-4">
@@ -548,11 +551,11 @@ function DashboardStats({ records, allCompanyRecords }: { records: AttendanceRec
               <p className="mt-1 text-sm font-medium text-gray-500">當您完成課程報到後，紀錄將會顯示於此。</p>
             </div>
           ) : (
-            <ul className="divide-y divide-gray-100/60 px-4 pb-4">
+            <ul className="divide-y divide-gray-100/60 px-3 pb-4">
               {paginatedAiRecords.map((record, i) => (
-                <li key={record.id} className="p-4 transition-colors hover:bg-white/60 rounded-2xl group flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex gap-4 items-start">
-                    <div className="hidden sm:flex mt-1 w-12 h-12 rounded-xl bg-orange-50 text-orange-500 items-center justify-center font-black text-sm text-center leading-tight tracking-wider">
+                <li key={record.id} className="p-4 transition-colors hover:bg-white/60 rounded-2xl group flex flex-col gap-3">
+                  <div className="flex gap-3 items-start">
+                    <div className="hidden sm:flex mt-1 w-10 h-10 shrink-0 rounded-xl bg-orange-50 text-orange-500 items-center justify-center font-black text-xs text-center leading-tight tracking-wider">
                       人工<br/>智慧
                     </div>
                     <div className="flex flex-col gap-1.5">
@@ -599,11 +602,11 @@ function DashboardStats({ records, allCompanyRecords }: { records: AttendanceRec
               <p className="text-lg font-bold text-gray-900">目前尚無一般課程紀錄</p>
             </div>
           ) : (
-            <ul className="divide-y divide-gray-100/60 px-4 pb-4">
+            <ul className="divide-y divide-gray-100/60 px-3 pb-4">
               {paginatedNonAiRecords.map((record, i) => (
-                <li key={record.id} className="p-4 transition-colors hover:bg-white/60 rounded-2xl group flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex gap-4 items-start">
-                    <div className="hidden sm:flex mt-1 w-12 h-12 rounded-xl bg-blue-50 text-blue-500 items-center justify-center font-black text-sm text-center leading-tight tracking-wider">
+                <li key={record.id} className="p-4 transition-colors hover:bg-white/60 rounded-2xl group flex flex-col gap-3">
+                  <div className="flex gap-3 items-start">
+                    <div className="hidden sm:flex mt-1 w-10 h-10 shrink-0 rounded-xl bg-blue-50 text-blue-500 items-center justify-center font-black text-xs text-center leading-tight tracking-wider">
                       一般<br/>課程
                     </div>
                     <div className="flex flex-col gap-1.5">
@@ -613,16 +616,16 @@ function DashboardStats({ records, allCompanyRecords }: { records: AttendanceRec
                             {record.electiveOrRequired}
                           </span>
                         )}
-                        <span className="text-xs text-gray-400 font-bold">{record.date}</span>
+                        <span className="text-[10px] text-gray-400 font-bold">{record.date}</span>
                       </div>
-                      <p className="text-base font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
-                        {record.courseName} <span className="text-sm font-medium text-gray-500 ml-2">({record.name})</span>
+                      <p className="text-sm font-bold text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-2 leading-snug">
+                        {record.courseName} <span className="text-xs font-medium text-gray-500 ml-1">({record.name})</span>
                       </p>
-                      <p className="text-xs text-gray-400 font-bold">{record.company}·{record.department}</p>
+                      <p className="text-[10px] text-gray-400 font-bold">{record.company}·{record.department}</p>
                     </div>
                   </div>
-                  <div className="flex flex-col items-end justify-center pr-2">
-                    <span className="text-xl font-black text-gray-900">+{record.hours}</span>
+                  <div className="flex flex-row items-center justify-end gap-1 pt-2 border-t border-gray-50 mt-1">
+                    <span className="text-lg font-black text-gray-900">+{record.hours}</span>
                     <span className="text-[10px] font-bold text-gray-400">時數</span>
                   </div>
                 </li>
@@ -635,7 +638,7 @@ function DashboardStats({ records, allCompanyRecords }: { records: AttendanceRec
         <div className="rounded-[2.5rem] bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
           <div className="px-8 py-8 pb-4">
             <div className="flex justify-between items-center mb-5">
-              <h3 className="text-xl font-black tracking-tight text-gray-900">學習推薦</h3>
+              <h3 className="text-xl font-black tracking-tight text-gray-900">曾經開過的課</h3>
               <span className="text-xs font-bold text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span> 總共 • {unattendedRecords.length} 筆
               </span>
@@ -650,14 +653,14 @@ function DashboardStats({ records, allCompanyRecords }: { records: AttendanceRec
               <p className="text-lg font-bold text-gray-900">目前尚無任何紀錄</p>
             </div>
           ) : (
-            <ul className="divide-y divide-gray-100/60 px-4 pb-4">
+            <ul className="divide-y divide-gray-100/60 px-3 pb-4">
               {paginatedUnattendedRecords.map((record, i) => {
                 const isAttended = false; // By definition, these are unattended
                 return (
-                  <li key={`${record.id}-${i}`} className="p-4 transition-colors hover:bg-white/60 rounded-2xl group flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex gap-4 items-start">
-                      <div className="hidden sm:flex mt-1 w-12 h-12 rounded-xl bg-gray-50 text-gray-500 items-center justify-center font-black text-sm text-center leading-tight tracking-wider">
-                        學習<br/>推薦
+                  <li key={`${record.id}-${i}`} className="p-4 transition-colors hover:bg-white/60 rounded-2xl group flex flex-col gap-3">
+                    <div className="flex gap-3 items-start">
+                      <div className="hidden sm:flex mt-1 w-10 h-10 shrink-0 rounded-xl bg-gray-50 text-gray-500 items-center justify-center font-black text-xs text-center leading-tight tracking-wider">
+                        歷史<br/>開課
                       </div>
                       <div className="flex flex-col gap-1.5">
                         <div className="flex items-center gap-2">
@@ -666,16 +669,16 @@ function DashboardStats({ records, allCompanyRecords }: { records: AttendanceRec
                               {record.electiveOrRequired}
                             </span>
                           )}
-                          <span className="text-xs text-gray-400 font-bold">{record.date}</span>
+                          <span className="text-[10px] text-gray-400 font-bold">{record.date}</span>
                         </div>
-                        <p className="text-base font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+                        <p className="text-sm font-bold text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-2 leading-snug">
                           {record.courseName}
                         </p>
-                        <p className="text-xs text-gray-400 font-bold">預計時數: {record.hours} 小時</p>
+                        <p className="text-[10px] text-gray-400 font-bold">預計時數: {record.hours} 小時</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 pr-2">
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold border bg-orange-50 text-orange-500 border-orange-200`}>
+                    <div className="flex flex-row items-center justify-between pt-2 border-t border-gray-50 mt-1">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border bg-orange-50 text-orange-500 border-orange-200`}>
                         ✨ 推薦探索
                       </span>
                     </div>
@@ -684,7 +687,8 @@ function DashboardStats({ records, allCompanyRecords }: { records: AttendanceRec
             })}
           </ul>
         )}
-      </div>
+        </div> {/* End of 3rd Column */}
+        </div> {/* End of 3 Columns Layout */}
 
       {/* Pagination Controls */}
       {totalPages > 1 && (
