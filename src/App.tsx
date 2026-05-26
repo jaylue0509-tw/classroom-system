@@ -402,7 +402,7 @@ function DashboardStats({ records, allCompanyRecords }: { records: AttendanceRec
     const electiveMissing = Math.max(0, electiveTarget - totalElectiveCount);
 
     // --- AI Specific Calculations (For the AI Courses section) ---
-    const isAICourse = (r: AttendanceRecord) => r.aiCredit === 'AI 學分課程' || r.aiCredit === 'V' || r.courseName.includes('AI');
+    const isAICourse = (r: AttendanceRecord) => r.aiCredit === 'AI 學分課程' || r.aiCredit === 'V';
     const aiRecords = attendedRecords.filter(isAICourse);
     const nonAiRecords = attendedRecords.filter(r => !isAICourse(r));
 
