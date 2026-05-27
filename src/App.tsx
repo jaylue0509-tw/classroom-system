@@ -372,6 +372,9 @@ function DashboardScreen({ user, onLogout }: { user: AppUser; onLogout: () => vo
 }
 
 
+// --- Helper Functions ---
+const isAICourse = (r: AttendanceRecord) => r.aiCredit === 'AI 學分課程' || r.aiCredit === 'V';
+
 // --- Dashboard Stats Component ---
 function DashboardStats({ records, allCompanyRecords }: { records: AttendanceRecord[], allCompanyRecords: AttendanceRecord[] }) {
   const [currentPage, setCurrentPage] = useState(1);
@@ -402,7 +405,6 @@ function DashboardStats({ records, allCompanyRecords }: { records: AttendanceRec
     const electiveMissing = Math.max(0, electiveTarget - totalElectiveCount);
 
     // --- AI Specific Calculations (For the AI Courses section) ---
-    const isAICourse = (r: AttendanceRecord) => r.aiCredit === 'AI 學分課程' || r.aiCredit === 'V';
     const aiRecords = attendedRecords.filter(isAICourse);
     const nonAiRecords = attendedRecords.filter(r => !isAICourse(r));
 
