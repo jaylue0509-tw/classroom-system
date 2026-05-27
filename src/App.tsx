@@ -660,9 +660,15 @@ function DashboardStats({ records, allCompanyRecords }: { records: AttendanceRec
                 return (
                   <li key={`${record.id}-${i}`} className="p-4 transition-colors hover:bg-white/60 rounded-2xl group flex flex-col gap-3">
                     <div className="flex gap-3 items-start">
-                      <div className="hidden sm:flex mt-1 w-10 h-10 shrink-0 rounded-xl bg-gray-50 text-gray-500 items-center justify-center font-black text-xs text-center leading-tight tracking-wider">
-                        歷史<br/>課程
-                      </div>
+                      {isAICourse(record) ? (
+                        <div className="hidden sm:flex mt-1 w-10 h-10 shrink-0 rounded-xl bg-orange-50 text-orange-500 items-center justify-center font-black text-xs text-center leading-tight tracking-wider">
+                          人工<br/>智慧
+                        </div>
+                      ) : (
+                        <div className="hidden sm:flex mt-1 w-10 h-10 shrink-0 rounded-xl bg-blue-50 text-blue-500 items-center justify-center font-black text-xs text-center leading-tight tracking-wider">
+                          一般<br/>課程
+                        </div>
+                      )}
                       <div className="flex flex-col gap-1.5">
                         <div className="flex items-center gap-2">
                           {record.electiveOrRequired && record.electiveOrRequired !== 'X' && (
