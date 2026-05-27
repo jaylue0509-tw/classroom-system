@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo, useDeferredValue } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, LogOut, Upload, BookOpen, Clock, Award, AlertCircle, Loader2, Shield, ChevronLeft, FileText, X } from 'lucide-react';
+import { Search, LogOut, Upload, BookOpen, Clock, Award, AlertCircle, Loader2, Shield, ChevronLeft, FileText, X, Crown } from 'lucide-react';
 import { signInWithPopup, signInWithEmailAndPassword, onAuthStateChanged, User, signOut, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { collection, query, where, getDocs, writeBatch, doc, orderBy } from 'firebase/firestore';
 import Papa from 'papaparse';
@@ -457,6 +457,34 @@ function DashboardStats({ records, allCompanyRecords }: { records: AttendanceRec
         exit={{ opacity: 0, y: -10 }}
         className="flex flex-col gap-6"
       >
+        {/* Congratulatory Banner (Shows only when target met) */}
+        {requiredMissing === 0 && electiveMissing === 0 && records.length > 0 && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="relative overflow-hidden rounded-[2rem] bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500 p-[2px]"
+          >
+            <div className="flex items-center justify-between gap-4 rounded-[calc(2rem-2px)] bg-white/90 px-8 py-6 backdrop-blur-xl">
+              <div className="flex items-center gap-5">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-yellow-100 to-amber-100 text-amber-500 shadow-inner">
+                  <Crown className="h-8 w-8" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black tracking-tight text-gray-900">恭喜完成年度目標！</h3>
+                  <p className="mt-1 text-sm font-bold text-gray-500">
+                    您已成功達成 <span className="text-amber-600">2 堂必修</span> 與 <span className="text-amber-600">4 堂選修</span> 的指定目標，太優秀了！
+                  </p>
+                </div>
+              </div>
+              <div className="hidden sm:block">
+                <span className="inline-flex animate-pulse items-center rounded-full bg-amber-100 px-4 py-2 text-xs font-black text-amber-600 border border-amber-200">
+                  ✨ 達標認證
+                </span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* 4 Cards Stats row */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           
