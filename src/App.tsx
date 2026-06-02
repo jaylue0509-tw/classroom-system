@@ -529,9 +529,15 @@ function DashboardStats({ records, allCompanyRecords }: { records: AttendanceRec
             <div className="w-full bg-gray-100 rounded-full h-2 mb-3 overflow-hidden">
               <div className="bg-red-400 h-2 rounded-full" style={{ width: `${Math.min(100, (totalRequiredCount/requiredTarget)*100)}%` }}></div>
             </div>
-            <p className="text-xs text-gray-400 font-bold">
-              {requiredMissing > 0 ? `差 ${requiredMissing} 堂達標` : '✅ 必修已達標'}
-            </p>
+            <div className="text-xs font-bold mt-1">
+              {requiredMissing > 0 ? (
+                <span className="text-gray-400">差 {requiredMissing} 堂達標</span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-amber-500 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-100">
+                  <Crown className="w-3.5 h-3.5" /> 必修已達標
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Card 4: 選修 */}
@@ -543,9 +549,15 @@ function DashboardStats({ records, allCompanyRecords }: { records: AttendanceRec
             <div className="w-full bg-gray-100 rounded-full h-2 mb-3 overflow-hidden">
               <div className="bg-purple-400 h-2 rounded-full" style={{ width: `${Math.min(100, (totalElectiveCount/electiveTarget)*100)}%` }}></div>
             </div>
-            <p className="text-xs text-gray-400 font-bold">
-              {requiredMissing > 0 ? `差 ${electiveMissing} 堂達標` : '✅ 選修已達標'}
-            </p>
+            <div className="text-xs font-bold mt-1">
+              {electiveMissing > 0 ? (
+                <span className="text-gray-400">差 {electiveMissing} 堂達標</span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-amber-500 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-100">
+                  <Crown className="w-3.5 h-3.5" /> 選修已達標
+                </span>
+              )}
+            </div>
           </div>
 
         </div>
@@ -668,7 +680,7 @@ function DashboardStats({ records, allCompanyRecords }: { records: AttendanceRec
         <div className="rounded-[2.5rem] bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl border border-white">
           <div className="px-8 py-8 pb-4">
             <div className="flex justify-between items-center mb-5">
-              <h3 className="text-xl font-black tracking-tight text-gray-900">歷史課程</h3>
+              <h3 className="text-xl font-black tracking-tight text-gray-900">曾經錯過的精彩課程</h3>
               <span className="text-xs font-bold text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span> 總共 • {unattendedRecords.length} 筆
               </span>
